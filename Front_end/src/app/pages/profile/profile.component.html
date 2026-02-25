@@ -1,0 +1,86 @@
+<div class="profile-container fade-in">
+  <div class="profile-card">
+    <div class="profile-header">
+      <button mat-icon-button (click)="goToHome()" class="back-button">
+        <mat-icon>arrow_back</mat-icon>
+      </button>
+      <h1>Chỉnh sửa hồ sơ</h1>
+    </div>
+
+    <form [formGroup]="profileForm" (ngSubmit)="onSubmit()" class="profile-form">
+      <div class="avatar-section">
+        <div class="avatar-container">
+          <img [src]="avatarPreview || 'assets/default-avatar.svg'" alt="Avatar" class="avatar-image" (error)="onImageError($event)">
+          <button mat-fab color="primary" class="avatar-upload-btn" (click)="triggerFileInput()" type="button">
+            <mat-icon>camera_alt</mat-icon>
+          </button>
+        </div>
+        <input type="file" id="avatar-input" accept="image/*" (change)="onFileSelected($event)" style="display: none;">
+        <p class="avatar-hint">Nhấn để thay đổi ảnh đại diện</p>
+      </div>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Tên hiển thị</mat-label>
+        <input matInput formControlName="displayName" placeholder="Nhập tên hiển thị">
+        <mat-icon matPrefix>badge</mat-icon>
+        <mat-error *ngIf="profileForm.get('displayName')?.hasError('required')">
+          Tên hiển thị là bắt buộc
+        </mat-error>
+        <mat-error *ngIf="profileForm.get('displayName')?.hasError('minlength')">
+          Tên phải có ít nhất 2 ký tự
+        </mat-error>
+      </mat-form-field>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="half-width">
+          <mat-label>Giới tính</mat-label>
+          <mat-select formControlName="gender">
+            <mat-option *ngFor="let gender of genders" [value]="gender.value">
+              {{gender.label}}
+            </mat-option>
+          </mat-select>
+          <mat-icon matPrefix>wc</mat-icon>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="half-width">
+          <mat-label>Tuổi</mat-label>
+          <input matInput type="number" formControlName="age" placeholder="18+">
+          <mat-icon matPrefix>cake</mat-icon>
+          <mat-error *ngIf="profileForm.get('age')?.hasError('min') || profileForm.get('age')?.hasError('max')">
+            Tuổi phải từ 18 đến 100
+          </mat-error>
+        </mat-form-field>
+      </div>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Quốc gia</mat-label>
+        <mat-select formControlName="country">
+          <mat-option *ngFor="let country of countries" [value]="country.value">
+            {{country.label}}
+          </mat-option>
+        </mat-select>
+        <mat-icon matPrefix>public</mat-icon>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Mô tả ngắn</mat-label>
+        <textarea matInput formControlName="bio" rows="4" placeholder="Giới thiệu về bản thân..."></textarea>
+        <mat-icon matPrefix>description</mat-icon>
+        <mat-hint>{{profileForm.get('bio')?.value?.length || 0}}/200</mat-hint>
+        <mat-error *ngIf="profileForm.get('bio')?.hasError('maxlength')">
+          Mô tả không được vượt quá 200 ký tự
+        </mat-error>
+      </mat-form-field>
+
+      <div class="form-actions">
+        <button mat-raised-button color="primary" type="submit" [disabled]="isLoading || profileForm.invalid" class="save-button">
+          <mat-spinner *ngIf="isLoading" diameter="20" class="button-spinner"></mat-spinner>
+          <span *ngIf="!isLoading">Lưu thay đổi</span>
+        </button>
+        <button mat-button type="button" (click)="goToHome()" [disabled]="isLoading">
+          Hủy
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

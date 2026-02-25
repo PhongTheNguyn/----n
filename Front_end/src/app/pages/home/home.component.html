@@ -1,0 +1,104 @@
+<div class="home-container">
+  <mat-toolbar color="primary" class="app-toolbar">
+    <span class="toolbar-title">Video Call Random</span>
+    <span class="spacer"></span>
+    <button mat-icon-button (click)="goToProfile()" matTooltip="Hồ sơ">
+      <mat-icon>account_circle</mat-icon>
+    </button>
+  </mat-toolbar>
+
+  <div class="home-content fade-in">
+    <!-- Filter Section -->
+    <div class="filter-section" *ngIf="isIdle">
+      <mat-card class="filter-card">
+        <mat-card-header>
+          <mat-card-title>Tùy chọn ghép cặp</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <form [formGroup]="filterForm" class="filter-form">
+            <mat-form-field appearance="outline">
+              <mat-label>Giới tính</mat-label>
+              <mat-select formControlName="gender">
+                <mat-option *ngFor="let gender of genders" [value]="gender.value">
+                  {{gender.label}}
+                </mat-option>
+              </mat-select>
+              <mat-icon matPrefix>wc</mat-icon>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Quốc gia</mat-label>
+              <mat-select formControlName="country">
+                <mat-option *ngFor="let country of countries" [value]="country.value">
+                  {{country.label}}
+                </mat-option>
+              </mat-select>
+              <mat-icon matPrefix>public</mat-icon>
+            </mat-form-field>
+
+            <button mat-raised-button color="primary" class="start-button" (click)="startMatching()" [disabled]="isSearching">
+              <mat-icon>videocam</mat-icon>
+              Bắt đầu ghép
+            </button>
+          </form>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <!-- Video Call Section -->
+    <div class="video-section" *ngIf="!isIdle">
+      <div class="video-container">
+        <!-- Remote Video -->
+        <div class="video-box remote-video" [class.connected]="isConnected">
+          <div class="video-placeholder" *ngIf="!isConnected">
+            <mat-spinner diameter="60"></mat-spinner>
+            <p class="status-text">{{statusText}}</p>
+          </div>
+          <video #remoteVideo autoplay playsinline class="video-element" *ngIf="isConnected"></video>
+          <p class="status-text overlay-text" *ngIf="isConnected">{{statusText}}</p>
+        </div>
+
+        <!-- Local Video -->
+        <div class="video-box local-video" [class.camera-off]="isCameraOff">
+          <video #localVideo autoplay muted playsinline class="video-element local-video-el"></video>
+          <div class="video-placeholder local-placeholder" *ngIf="!localStream">
+            <div class="avatar-small">
+              <mat-icon>person</mat-icon>
+            </div>
+            <p class="local-label">Bạn</p>
+          </div>
+          <div class="camera-off-overlay" *ngIf="isCameraOff && localStream">
+            <mat-icon>videocam_off</mat-icon>
+          </div>
+        </div>
+      </div>
+
+      <!-- Control Buttons -->
+      <div class="controls">
+        <button mat-fab color="warn" (click)="toggleMic()" [class.muted]="isMicMuted" [matTooltip]="isMicMuted ? 'Bật mic' : 'Tắt mic'">
+          <mat-icon>{{isMicMuted ? 'mic_off' : 'mic'}}</mat-icon>
+        </button>
+
+        <button mat-fab color="primary" (click)="toggleCamera()" [class.camera-off]="isCameraOff" [matTooltip]="isCameraOff ? 'Bật camera' : 'Tắt camera'">
+          <mat-icon>{{isCameraOff ? 'videocam_off' : 'videocam'}}</mat-icon>
+        </button>
+
+        <button mat-fab color="accent" (click)="nextMatch()" *ngIf="isConnected" matTooltip="Bỏ qua">
+          <mat-icon>skip_next</mat-icon>
+        </button>
+
+        <button mat-fab color="default" (click)="openReportDialog()" *ngIf="isConnected" matTooltip="Báo cáo">
+          <mat-icon>flag</mat-icon>
+        </button>
+
+        <button mat-fab color="default" (click)="blockUser()" *ngIf="isConnected" matTooltip="Chặn">
+          <mat-icon>block</mat-icon>
+        </button>
+
+        <button mat-fab color="warn" (click)="stopMatching()" matTooltip="Kết thúc">
+          <mat-icon>call_end</mat-icon>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

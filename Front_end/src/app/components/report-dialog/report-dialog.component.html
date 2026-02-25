@@ -1,0 +1,20 @@
+<h2 mat-dialog-title>Báo cáo người dùng</h2>
+<mat-dialog-content>
+  <p *ngIf="data?.reportedDisplayName">Bạn đang báo cáo: <strong>{{ data.reportedDisplayName }}</strong></p>
+  <form [formGroup]="form" class="report-form">
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Lý do báo cáo</mat-label>
+      <mat-select formControlName="reason">
+        <mat-option *ngFor="let r of reasons" [value]="r.value">{{ r.label }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Mô tả chi tiết (tùy chọn)</mat-label>
+      <textarea matInput formControlName="description" rows="3" placeholder="Thêm chi tiết..."></textarea>
+    </mat-form-field>
+  </form>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button (click)="cancel()">Hủy</button>
+  <button mat-raised-button color="warn" [disabled]="form.invalid" (click)="submit()">Gửi báo cáo</button>
+</mat-dialog-actions>

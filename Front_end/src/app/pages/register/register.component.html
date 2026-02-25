@@ -1,0 +1,122 @@
+<div class="register-container fade-in">
+  <div class="register-card">
+    <div class="register-header">
+      <h1>Tạo tài khoản mới</h1>
+      <p>Tham gia cộng đồng Video Call Random</p>
+    </div>
+
+    <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" class="register-form">
+      <mat-form-field appearance="outline">
+        <mat-label>Họ tên</mat-label>
+        <input matInput formControlName="fullName" placeholder="Nhập họ tên đầy đủ">
+        <mat-icon matPrefix>person</mat-icon>
+        <mat-error *ngIf="registerForm.get('fullName')?.hasError('required')">
+          Họ tên là bắt buộc
+        </mat-error>
+        <mat-error *ngIf="registerForm.get('fullName')?.hasError('minlength')">
+          Họ tên phải có ít nhất 2 ký tự
+        </mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Email</mat-label>
+        <input matInput type="email" formControlName="email" placeholder="example@email.com">
+        <mat-icon matPrefix>email</mat-icon>
+        <mat-error *ngIf="registerForm.get('email')?.hasError('required')">
+          Email là bắt buộc
+        </mat-error>
+        <mat-error *ngIf="registerForm.get('email')?.hasError('email')">
+          Email không hợp lệ
+        </mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Mật khẩu</mat-label>
+        <input matInput [type]="hidePassword ? 'password' : 'text'" formControlName="password" placeholder="Tối thiểu 6 ký tự">
+        <mat-icon matPrefix>lock</mat-icon>
+        <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword">
+          <mat-icon>{{hidePassword ? 'visibility_off' : 'visibility'}}</mat-icon>
+        </button>
+        <mat-error *ngIf="registerForm.get('password')?.hasError('required')">
+          Mật khẩu là bắt buộc
+        </mat-error>
+        <mat-error *ngIf="registerForm.get('password')?.hasError('minlength')">
+          Mật khẩu phải có ít nhất 6 ký tự
+        </mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Xác nhận mật khẩu</mat-label>
+        <input matInput [type]="hideConfirmPassword ? 'password' : 'text'" formControlName="confirmPassword" placeholder="Nhập lại mật khẩu">
+        <mat-icon matPrefix>lock_outline</mat-icon>
+        <button mat-icon-button matSuffix type="button" (click)="hideConfirmPassword = !hideConfirmPassword">
+          <mat-icon>{{hideConfirmPassword ? 'visibility_off' : 'visibility'}}</mat-icon>
+        </button>
+        <mat-error *ngIf="registerForm.get('confirmPassword')?.hasError('required')">
+          Xác nhận mật khẩu là bắt buộc
+        </mat-error>
+        <mat-error *ngIf="registerForm.get('confirmPassword')?.hasError('passwordMismatch')">
+          Mật khẩu không khớp
+        </mat-error>
+      </mat-form-field>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="half-width">
+          <mat-label>Giới tính</mat-label>
+          <mat-select formControlName="gender">
+            <mat-option *ngFor="let gender of genders" [value]="gender.value">
+              {{gender.label}}
+            </mat-option>
+          </mat-select>
+          <mat-icon matPrefix>wc</mat-icon>
+          <mat-error *ngIf="registerForm.get('gender')?.hasError('required')">
+            Vui lòng chọn giới tính
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="half-width">
+          <mat-label>Tuổi</mat-label>
+          <input matInput type="number" formControlName="age" placeholder="18+">
+          <mat-icon matPrefix>cake</mat-icon>
+          <mat-error *ngIf="registerForm.get('age')?.hasError('required')">
+            Tuổi là bắt buộc
+          </mat-error>
+          <mat-error *ngIf="registerForm.get('age')?.hasError('min') || registerForm.get('age')?.hasError('max')">
+            Tuổi phải từ 18 đến 100
+          </mat-error>
+        </mat-form-field>
+      </div>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Quốc gia</mat-label>
+        <mat-select formControlName="country">
+          <mat-option *ngFor="let country of countries" [value]="country.value">
+            {{country.label}}
+          </mat-option>
+        </mat-select>
+        <mat-icon matPrefix>public</mat-icon>
+        <mat-error *ngIf="registerForm.get('country')?.hasError('required')">
+          Vui lòng chọn quốc gia
+        </mat-error>
+      </mat-form-field>
+
+      <div class="terms-checkbox">
+        <mat-checkbox formControlName="agreeTerms">
+          Tôi đồng ý với <a href="#" class="terms-link">Điều khoản sử dụng</a> và <a href="#" class="terms-link">Chính sách bảo mật</a>
+        </mat-checkbox>
+        <mat-error *ngIf="registerForm.get('agreeTerms')?.hasError('required') && registerForm.get('agreeTerms')?.touched">
+          Bạn phải đồng ý với điều khoản
+        </mat-error>
+      </div>
+
+      <button mat-raised-button color="primary" type="submit" [disabled]="isLoading || registerForm.invalid" class="register-button">
+        <mat-spinner *ngIf="isLoading" diameter="20" class="button-spinner"></mat-spinner>
+        <span *ngIf="!isLoading">Đăng ký</span>
+      </button>
+    </form>
+
+    <div class="login-link">
+      <p>Đã có tài khoản? <button mat-button color="primary" (click)="goToLogin()">Đăng nhập</button></p>
+    </div>
+  </div>
+</div>
