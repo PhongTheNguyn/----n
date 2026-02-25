@@ -15,7 +15,7 @@ export function getApiUrl(): string {
 
   // Dev: khi mở bằng IP LAN (vd 192.168.x.x), gọi backend tại http://<ip>:3000
   if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return `http://${window.location.hostname}:3000`;
+    return `${environment.apiUrl}/api/auth/login`;
   }
 
   // Dev localhost: dùng proxy (/api -> localhost:3000)
@@ -30,12 +30,12 @@ export function getApiUrl(): string {
  */
 export function getWsUrl(): string {
   if (environment.production) {
-    return environment.wsUrl || 'http://localhost:3000';
+    return environment.wsUrl || 'https://app-videocall.vercel.app';
   }
 
   if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return `http://${window.location.hostname}:3000`;
+    return `${environment.apiUrl}/api/auth/login`;
   }
 
-  return environment.wsUrl || 'http://localhost:3000';
+  return environment.wsUrl || 'https://app-videocall.vercel.app';
 }
