@@ -1,5 +1,5 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://app-videocall.vercel.app',
-  wsUrl: 'https://app-videocall.vercel.app'
+  apiUrl: 'https://video-call-api.onrender.com',
+  wsUrl: 'https://video-call-api.onrender.com'
 };
