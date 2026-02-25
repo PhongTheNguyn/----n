@@ -18,10 +18,6 @@ npm install
 
 Tạo database PostgreSQL và cập nhật `back_end/.env`:
 
-```
-DATABASE_URL="postgresql://user:password@localhost:5432/app_videocall"
-JWT_SECRET=thephong10
-```
 
 Chạy migration:
 
@@ -46,7 +42,6 @@ npm install
 npm start
 ```
 
-Frontend chạy tại http://localhost:4200 (dùng proxy để gọi API backend).
 
 ## Các trang
 
