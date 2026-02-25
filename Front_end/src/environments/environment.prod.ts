@@ -1,5 +1,5 @@
 export const environment = {
   production: true,
-  apiUrl: '/api',
+  apiUrl: 'https://app-videocall.vercel.app',
   wsUrl: window.location.origin
 };
