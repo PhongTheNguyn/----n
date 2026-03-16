@@ -1,5 +1,5 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://video-call-api.onrender.com',
-  wsUrl: 'https://video-call-api.onrender.com'
+  apiUrl: 'https://n-jgmm.onrender.com',
+  wsUrl: 'https://n-jgmm.onrender.com'
 };
