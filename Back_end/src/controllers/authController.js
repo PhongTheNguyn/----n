@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { prisma } = require('../config/db');
+const { createSystemLog } = require('./adminController');
 
 async function register(req, res) {
   try {
@@ -66,7 +67,8 @@ async function register(req, res) {
         country: user.country,
         age: user.age,
         bio: user.bio,
-        avatarUrl: user.avatarUrl
+        avatarUrl: user.avatarUrl,
+        role: user.role || 'user'
       }
     });
   } catch (err) {
@@ -93,6 +95,20 @@ async function login(req, res) {
       return res.status(401).json({ error: 'Email hoặc mật khẩu không đúng' });
     }
 
+    const now = new Date();
+    if (user.isBanned) {
+      if (user.bannedUntil == null || new Date(user.bannedUntil) > now) {
+        return res.status(403).json({ error: 'Tài khoản đã bị khóa' });
+      }
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { isBanned: false, bannedUntil: null }
+      });
+      user.isBanned = false;
+    }
+
+    createSystemLog({ action: 'login', user_id: user.id }).catch(() => {});
+
     const token = jwt.sign(
       { userId: user.id },
       process.env.JWT_SECRET,
@@ -109,7 +125,8 @@ async function login(req, res) {
         country: user.country,
         age: user.age,
         bio: user.bio,
-        avatarUrl: user.avatarUrl
+        avatarUrl: user.avatarUrl,
+        role: user.role || 'user'
       }
     });
   } catch (err) {

@@ -6,6 +6,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatchingService } from '../../services/matching.service';
 import { ReportBlockService } from '../../services/report-block.service';
+import { AdminService } from '../../services/admin.service';
 import { ReportDialogComponent } from '../../components/report-dialog/report-dialog.component';
 
 enum MatchingStatus {
@@ -61,6 +62,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     private router: Router,
     private matching: MatchingService,
     private reportBlock: ReportBlockService,
+    private admin: AdminService,
     private dialog: MatDialog,
     private snackBar: MatSnackBar
   ) {
@@ -203,6 +205,10 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   get isIdle(): boolean {
     return this.matchingStatus === MatchingStatus.IDLE;
+  }
+
+  get isAdmin(): boolean {
+    return this.admin.isAdmin();
   }
 
   private attachLocalStream() {
