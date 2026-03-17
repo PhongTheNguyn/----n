@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ProfileService } from '../../services/profile.service';
 import { AuthService } from '../../services/auth.service';
+import { ReportBlockService } from '../../services/report-block.service';
 
 @Component({
   selector: 'app-profile',
@@ -15,6 +16,7 @@ export class ProfileComponent implements OnInit {
   isLoading = false;
   avatarPreview: string | ArrayBuffer | null = null;
   selectedFile: File | null = null;
+  blockedList: Array<{ id: string; blockedId: string; displayName?: string; avatarUrl?: string }> = [];
 
   genders = [
     { value: 'male', label: 'Nam' },
@@ -38,6 +40,7 @@ export class ProfileComponent implements OnInit {
     private router: Router,
     private profileService: ProfileService,
     private auth: AuthService,
+    private reportBlock: ReportBlockService,
     private snackBar: MatSnackBar
   ) {
     this.profileForm = this.fb.group({
@@ -51,6 +54,7 @@ export class ProfileComponent implements OnInit {
   }
 
   ngOnInit() {
+    this.loadBlockedList();
     this.profileService.getProfile().subscribe({
       next: (user) => {
         this.profileForm.patchValue({
@@ -141,5 +145,25 @@ export class ProfileComponent implements OnInit {
 
   goToHome() {
     this.router.navigate(['/home']);
+  }
+
+  loadBlockedList() {
+    this.reportBlock.getBlockedList().subscribe({
+      next: (list) => {
+        this.blockedList = list || [];
+      }
+    });
+  }
+
+  unblockUser(blockedId: string) {
+    this.reportBlock.unblock(blockedId).subscribe({
+      next: () => {
+        this.snackBar.open('Đã bỏ chặn', 'Đóng', { duration: 2000 });
+        this.loadBlockedList();
+      },
+      error: () => {
+        this.snackBar.open('Không thể bỏ chặn', 'Đóng', { duration: 3000 });
+      }
+    });
   }
 }

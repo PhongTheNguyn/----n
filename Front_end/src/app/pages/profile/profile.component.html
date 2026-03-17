@@ -82,5 +82,15 @@
         </button>
       </div>
     </form>
+
+    <div class="blocked-section">
+      <h3>Người đã chặn</h3>
+      <p *ngIf="blockedList.length === 0" class="empty-hint">Bạn chưa chặn ai</p>
+      <div *ngFor="let b of blockedList" class="blocked-item">
+        <img [src]="b.avatarUrl || 'assets/default-avatar.svg'" alt="" class="blocked-avatar" (error)="onImageError($event)">
+        <span class="blocked-name">{{ b.displayName || 'Người dùng' }}</span>
+        <button mat-stroked-button color="warn" (click)="unblockUser(b.blockedId)">Bỏ chặn</button>
+      </div>
+    </div>
   </div>
 </div>
