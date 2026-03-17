@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { AuthService } from '../../services/auth.service';
 import { MatchingService } from '../../services/matching.service';
 import { ReportBlockService } from '../../services/report-block.service';
 import { AdminService } from '../../services/admin.service';
@@ -60,6 +61,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   constructor(
     private fb: FormBuilder,
     private router: Router,
+    private auth: AuthService,
     private matching: MatchingService,
     private reportBlock: ReportBlockService,
     private admin: AdminService,
@@ -150,6 +152,12 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   goToProfile() {
     this.router.navigate(['/profile']);
+  }
+
+  logout() {
+    this.cleanup();
+    this.matching.disconnect();
+    this.auth.logout();
   }
 
   openReportDialog() {

@@ -147,6 +147,10 @@ export class ProfileComponent implements OnInit {
     this.router.navigate(['/home']);
   }
 
+  logout() {
+    this.auth.logout();
+  }
+
   loadBlockedList() {
     this.reportBlock.getBlockedList().subscribe({
       next: (list) => {
