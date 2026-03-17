@@ -5,6 +5,9 @@
         <mat-icon>arrow_back</mat-icon>
       </button>
       <h1>Chỉnh sửa hồ sơ</h1>
+      <button mat-icon-button (click)="logout()" class="logout-button" matTooltip="Đăng xuất">
+        <mat-icon>logout</mat-icon>
+      </button>
     </div>
 
     <form [formGroup]="profileForm" (ngSubmit)="onSubmit()" class="profile-form">
