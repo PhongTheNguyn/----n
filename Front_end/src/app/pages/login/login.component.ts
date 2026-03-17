@@ -35,7 +35,8 @@ export class LoginComponent {
       ).subscribe({
         next: () => {
           this.isLoading = false;
-          this.router.navigate(['/home']);
+          const user = this.auth.getUser();
+          this.router.navigate(user?.role === 'admin' ? ['/admin'] : ['/home']);
         },
         error: (err) => {
           this.isLoading = false;

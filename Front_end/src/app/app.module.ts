@@ -19,14 +19,24 @@ import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatTableModule } from '@angular/material/table';
+import { MatPaginatorModule } from '@angular/material/paginator';
 
 import { AppComponent } from './app.component';
 import { ReportDialogComponent } from './components/report-dialog/report-dialog.component';
 import { AuthGuard } from './guards/auth.guard';
+import { AdminGuard } from './guards/admin.guard';
 import { LoginComponent } from './pages/login/login.component';
 import { RegisterComponent } from './pages/register/register.component';
 import { ProfileComponent } from './pages/profile/profile.component';
 import { HomeComponent } from './pages/home/home.component';
+import { AdminLayoutComponent } from './pages/admin/admin-layout.component';
+import { AdminDashboardComponent } from './pages/admin/admin-dashboard.component';
+import { AdminReportsComponent } from './pages/admin/admin-reports.component';
+import { AdminSessionsComponent } from './pages/admin/admin-sessions.component';
+import { AdminLogsComponent } from './pages/admin/admin-logs.component';
+import { AdminConfigComponent } from './pages/admin/admin-config.component';
 
 @NgModule({
   declarations: [
@@ -49,6 +59,18 @@ import { HomeComponent } from './pages/home/home.component';
       { path: 'register', component: RegisterComponent },
       { path: 'profile', component: ProfileComponent, canActivate: [AuthGuard] },
       { path: 'home', component: HomeComponent, canActivate: [AuthGuard] },
+      {
+        path: 'admin',
+        component: AdminLayoutComponent,
+        canActivate: [AdminGuard],
+        children: [
+          { path: '', component: AdminDashboardComponent },
+          { path: 'reports', component: AdminReportsComponent },
+          { path: 'sessions', component: AdminSessionsComponent },
+          { path: 'logs', component: AdminLogsComponent },
+          { path: 'config', component: AdminConfigComponent }
+        ]
+      },
       { path: '**', redirectTo: '/login' }
     ]),
     MatButtonModule,
@@ -63,7 +85,16 @@ import { HomeComponent } from './pages/home/home.component';
     MatSnackBarModule,
     MatTooltipModule,
     MatDialogModule,
-    MatMenuModule
+    MatMenuModule,
+    MatSidenavModule,
+    MatTableModule,
+    MatPaginatorModule,
+    AdminLayoutComponent,
+    AdminDashboardComponent,
+    AdminReportsComponent,
+    AdminSessionsComponent,
+    AdminLogsComponent,
+    AdminConfigComponent
   ],
   providers: [],
   bootstrap: [AppComponent]

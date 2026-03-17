@@ -17,6 +17,9 @@ model User {
   age                                           Int
   bio                                           String?
   avatarUrl                                     String?         @map("avatar_url")
+  role                                          String          @default("user") @db.VarChar(20)
+  isBanned                                      Boolean         @default(false) @map("is_banned")
+  bannedUntil                                   DateTime?       @map("banned_until") @db.Timestamptz(6)
   createdAt                                     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   blocked_users_blocked_users_blocked_idTousers blocked_users[] @relation("blocked_users_blocked_idTousers")
   blocked_users_blocked_users_blocker_idTousers blocked_users[] @relation("blocked_users_blocker_idTousers")
@@ -42,17 +45,55 @@ model blocked_users {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model user_reports {
-  id                                    String   @id
+  id                                    String    @id
   reporter_id                           String
   reported_id                           String
-  reason                                String   @db.VarChar(50)
+  reason                                String    @db.VarChar(50)
   description                           String?
-  status                                String   @default("pending") @db.VarChar(20)
-  created_at                            DateTime @default(now()) @db.Timestamptz(6)
-  users_user_reports_reported_idTousers User     @relation("user_reports_reported_idTousers", fields: [reported_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  users_user_reports_reporter_idTousers User     @relation("user_reports_reporter_idTousers", fields: [reporter_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  status                                String    @default("pending") @db.VarChar(20)
+  action_by                             String?   @map("action_by")
+  action_at                             DateTime? @map("action_at") @db.Timestamptz(6)
+  created_at                            DateTime  @default(now()) @db.Timestamptz(6)
+  users_user_reports_reported_idTousers User      @relation("user_reports_reported_idTousers", fields: [reported_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_user_reports_reporter_idTousers User      @relation("user_reports_reporter_idTousers", fields: [reporter_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([reported_id], map: "idx_user_reports_reported")
   @@index([reporter_id], map: "idx_user_reports_reporter")
   @@index([status], map: "idx_user_reports_status")
+}
+
+model admin_config {
+  id         String   @id @default(cuid())
+  key        String   @unique @db.VarChar(100)
+  value      String   @db.Text
+  updated_at DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("admin_config")
+}
+
+model call_sessions {
+  id         String    @id @default(cuid())
+  user_a_id  String    @map("user_a_id") @db.VarChar(100)
+  user_b_id  String    @map("user_b_id") @db.VarChar(100)
+  room_id    String    @map("room_id") @db.VarChar(100)
+  started_at DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  ended_at   DateTime? @map("ended_at") @db.Timestamptz(6)
+
+  @@index([user_a_id], map: "idx_call_sessions_user_a")
+  @@index([user_b_id], map: "idx_call_sessions_user_b")
+  @@index([started_at], map: "idx_call_sessions_started")
+  @@map("call_sessions")
+}
+
+model system_logs {
+  id         String   @id @default(cuid())
+  action     String   @db.VarChar(50)
+  user_id    String?  @map("user_id") @db.VarChar(100)
+  target_id  String?  @map("target_id") @db.VarChar(100)
+  details    String?  @db.Text
+  created_at DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([action], map: "idx_system_logs_action")
+  @@index([created_at], map: "idx_system_logs_created")
+  @@map("system_logs")
 }

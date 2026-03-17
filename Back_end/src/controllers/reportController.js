@@ -1,5 +1,6 @@
-const { prisma } = require('../config/db');
+const { prisma } = require('./config/db');
 const { randomUUID } = require('crypto');
+const { createSystemLog } = require('./adminController');
 
 const VALID_REASONS = ['inappropriate', 'harassment', 'spam', 'other'];
 
@@ -36,6 +37,13 @@ async function createReport(req, res) {
         status: 'pending'
       }
     });
+
+    createSystemLog({
+      action: 'report',
+      user_id: reporterId,
+      target_id: reportedId,
+      details: JSON.stringify({ reportId: id, reason })
+    }).catch(() => {});
 
     res.status(201).json({ message: 'Báo cáo đã được gửi' });
   } catch (err) {

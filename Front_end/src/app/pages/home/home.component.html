@@ -2,6 +2,9 @@
   <mat-toolbar color="primary" class="app-toolbar">
     <span class="toolbar-title">Video Call Random</span>
     <span class="spacer"></span>
+    <button mat-icon-button *ngIf="isAdmin" routerLink="/admin" matTooltip="Admin">
+      <mat-icon>admin_panel_settings</mat-icon>
+    </button>
     <button mat-icon-button (click)="goToProfile()" matTooltip="Hồ sơ">
       <mat-icon>account_circle</mat-icon>
     </button>
