@@ -108,7 +108,14 @@ export class HomeComponent implements OnInit, OnDestroy {
       return;
     }
     try {
-      this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      this.localStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
       this.attachLocalStream();
       this.matchingStatus = MatchingStatus.SEARCHING;
       this.matching.joinQueue(this.filterForm.value);
@@ -222,7 +229,12 @@ export class HomeComponent implements OnInit, OnDestroy {
   private attachLocalStream() {
     setTimeout(() => {
       const el = this.localVideoRef?.nativeElement;
-      if (el && this.localStream) el.srcObject = this.localStream;
+      if (el && this.localStream) {
+        // Ensure local preview never plays back captured microphone.
+        el.muted = true;
+        el.volume = 0;
+        el.srcObject = this.localStream;
+      }
     }, 0);
   }
 

@@ -1,5 +1,5 @@
 export const environment = {
-  production: true,
-  apiUrl: 'https://n-jgmm.onrender.com',
-  wsUrl: 'https://n-jgmm.onrender.com'
+  production: false,
+  apiUrl: 'http://localhost:3000',
+  wsUrl: 'http://localhost:3000'
 };
