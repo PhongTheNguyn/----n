@@ -13,6 +13,10 @@ async function getTurnCredentials(req, res) {
       const response = await fetch(url.toString());
       if (!response.ok) {
         const details = await response.text().catch(() => '');
+        console.error('Metered TURN credentials error:', {
+          status: response.status,
+          details
+        });
         return res.status(response.status).json({ error: 'Metered error', details });
       }
   

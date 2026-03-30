@@ -254,7 +254,8 @@ export class HomeComponent implements OnInit, OnDestroy {
             this.config.iceServers = data.iceServers; // lấy TURN/STUN từ Metered
           }
         } else {
-          console.warn('TURN credentials fetch failed:', res.status);
+          const body = await res.text().catch(() => '');
+          console.warn('TURN credentials fetch failed:', res.status, body);
         }
       } catch (e) {
         console.warn('TURN fetch error:', e);
