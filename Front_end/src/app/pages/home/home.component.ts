@@ -9,6 +9,7 @@ import { MatchingService } from '../../services/matching.service';
 import { ReportBlockService } from '../../services/report-block.service';
 import { AdminService } from '../../services/admin.service';
 import { ReportDialogComponent } from '../../components/report-dialog/report-dialog.component';
+import { getApiUrl } from '../../core/api-config';
 
 enum MatchingStatus {
   IDLE = 'idle',
@@ -239,6 +240,26 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   private async setupPeerConnection() {
+    const token = this.auth.getToken();
+
+    if (token) {
+      try {
+        const res = await fetch(`${getApiUrl()}/api/webrtc/turn-credentials`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.iceServers?.length) {
+            this.config.iceServers = data.iceServers; // lấy TURN/STUN từ Metered
+          }
+        } else {
+          console.warn('TURN credentials fetch failed:', res.status);
+        }
+      } catch (e) {
+        console.warn('TURN fetch error:', e);
+      }
+    }
     this.peerConnection = new RTCPeerConnection(this.config);
     this.localStream?.getTracks().forEach((t) => this.peerConnection!.addTrack(t, this.localStream!));
 
@@ -302,4 +323,6 @@ export class HomeComponent implements OnInit, OnDestroy {
     const lv = this.localVideoRef?.nativeElement;
     if (lv) lv.srcObject = null;
   }
+
+  
 }

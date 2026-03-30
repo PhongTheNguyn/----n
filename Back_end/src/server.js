@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const { Server } = require('socket.io');
+const webrtcRoutes = require('./routes/webrtcRoutes');
 
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
@@ -42,6 +43,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/block', blockRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/webrtc', webrtcRoutes);
 
 const PORT = process.env.PORT || 3000;
 
