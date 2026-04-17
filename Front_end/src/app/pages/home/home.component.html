@@ -53,19 +53,25 @@
 
     <!-- Video Call Section -->
     <div class="video-section" *ngIf="!isIdle">
-      <div class="video-container">
+      <div class="video-container"
+           [class.mode-both]="videoDisplayMode === 'both'"
+           [class.mode-local]="videoDisplayMode === 'local'"
+           [class.mode-remote]="videoDisplayMode === 'remote'"
+           (click)="toggleVideoDisplay()">
+
         <!-- Remote Video -->
-        <div class="video-box remote-video" [class.connected]="isConnected">
+        <div class="video-box remote-video" [class.connected]="isConnected" [class.active]="videoDisplayMode === 'remote' || videoDisplayMode === 'both'">
           <div class="video-placeholder" *ngIf="!isConnected">
             <mat-spinner diameter="60"></mat-spinner>
             <p class="status-text">{{statusText}}</p>
           </div>
           <video #remoteVideo autoplay playsinline class="video-element" *ngIf="isConnected"></video>
-          <p class="status-text overlay-text" *ngIf="isConnected">{{statusText}}</p>
+          <p class="status-text overlay-text" *ngIf="isConnected && videoDisplayMode !== 'remote'">{{statusText}}</p>
+          <p class="local-label" *ngIf="videoDisplayMode === 'remote'">Đối phương</p>
         </div>
 
         <!-- Local Video -->
-        <div class="video-box local-video" [class.camera-off]="isCameraOff">
+        <div class="video-box local-video" [class.camera-off]="isCameraOff" [class.active]="videoDisplayMode === 'local' || videoDisplayMode === 'both'">
           <video #localVideo autoplay muted playsinline class="video-element local-video-el"></video>
           <div class="video-placeholder local-placeholder" *ngIf="!localStream">
             <div class="avatar-small">
@@ -76,6 +82,13 @@
           <div class="camera-off-overlay" *ngIf="isCameraOff && localStream">
             <mat-icon>videocam_off</mat-icon>
           </div>
+          <p class="local-label" *ngIf="videoDisplayMode === 'local' && localStream">Bạn</p>
+        </div>
+
+        <!-- Tap hint for mobile -->
+        <div class="video-tap-hint" *ngIf="isConnected && !isIdle && (videoDisplayMode === 'both')">
+          <mat-icon>touch_app</mat-icon>
+          Chạm để phóng to
         </div>
       </div>
 

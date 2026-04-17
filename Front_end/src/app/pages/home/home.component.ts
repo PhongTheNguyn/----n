@@ -38,6 +38,9 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   private destroy$ = new Subject<void>();
   private pendingCandidates: RTCIceCandidateInit[] = [];
+
+  // Video display mode: 'both' | 'local' | 'remote'
+  videoDisplayMode: 'both' | 'local' | 'remote' = 'both';
   private config: RTCConfiguration = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
   };
@@ -45,8 +48,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   genders = [
     { value: 'all', label: 'Tất cả' },
     { value: 'male', label: 'Nam' },
-    { value: 'female', label: 'Nữ' },
-    { value: 'other', label: 'Khác' }
+    { value: 'female', label: 'Nữ' }
   ];
 
   countries = [
@@ -90,6 +92,16 @@ export class HomeComponent implements OnInit, OnDestroy {
         this.peerUserId = peerUserId || null;
         this.isInitiator = isInitiator;
         this.matchingStatus = MatchingStatus.CONNECTED;
+
+        // Set initial video display mode based on device type
+        // Mobile: default mode shows remote fullscreen with local in corner
+        // Desktop: split screen both visible
+        if (this.isMobileDevice()) {
+          this.videoDisplayMode = 'both'; // Mobile default
+        } else {
+          this.videoDisplayMode = 'both'; // Desktop split screen
+        }
+
         this.setupPeerConnection();
       });
 
@@ -194,6 +206,21 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.cleanup();
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  toggleVideoDisplay() {
+    // Cycle through modes: both -> local -> remote -> both
+    if (this.videoDisplayMode === 'both') {
+      this.videoDisplayMode = 'local';
+    } else if (this.videoDisplayMode === 'local') {
+      this.videoDisplayMode = 'remote';
+    } else {
+      this.videoDisplayMode = 'both';
+    }
+  }
+
+  setVideoDisplay(mode: 'both' | 'local' | 'remote') {
+    this.videoDisplayMode = mode;
   }
 
   async startMatching() {
@@ -343,6 +370,10 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   get isAdmin(): boolean {
     return this.admin.isAdmin();
+  }
+
+  private isMobileDevice(): boolean {
+    return window.innerWidth <= 768;
   }
 
   private attachLocalStream() {
