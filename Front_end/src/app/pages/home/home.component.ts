@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Subject, takeUntil } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { AuthService } from '../../services/auth.service';
@@ -35,12 +35,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   isInitiator = false;
   localStream: MediaStream | null = null;
   peerConnection: RTCPeerConnection | null = null;
-
-  private destroy$ = new Subject<void>();
-  private pendingCandidates: RTCIceCandidateInit[] = [];
-
-  // Video display mode: 'both' | 'local' | 'remote'
-  videoDisplayMode: 'both' | 'local' | 'remote' = 'both';
+  private subs: Subscription[] = [];
   private config: RTCConfiguration = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
   };
@@ -48,7 +43,8 @@ export class HomeComponent implements OnInit, OnDestroy {
   genders = [
     { value: 'all', label: 'Tất cả' },
     { value: 'male', label: 'Nam' },
-    { value: 'female', label: 'Nữ' }
+    { value: 'female', label: 'Nữ' },
+    { value: 'other', label: 'Khác' }
   ];
 
   countries = [
@@ -80,152 +76,30 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-    this.setupSocketListeners();
-  }
-
-  private setupSocketListeners(): void {
-    this.matching.onMatched()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(({ roomId, peerUserId, isInitiator }) => {
-        console.log('[HomeComponent] Matched:', { roomId, peerUserId, isInitiator });
+    this.subs.push(
+      this.matching.onMatched().subscribe(({ roomId, peerUserId, isInitiator }) => {
         this.roomId = roomId;
         this.peerUserId = peerUserId || null;
         this.isInitiator = isInitiator;
         this.matchingStatus = MatchingStatus.CONNECTED;
-
-        // Set initial video display mode based on device type
-        // Mobile: default mode shows remote fullscreen with local in corner
-        // Desktop: split screen both visible
-        if (this.isMobileDevice()) {
-          this.videoDisplayMode = 'both'; // Mobile default
-        } else {
-          this.videoDisplayMode = 'both'; // Desktop split screen
-        }
-
         this.setupPeerConnection();
-      });
-
-    this.matching.onSearching()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        console.log('[HomeComponent] Searching...');
+      }),
+      this.matching.onSearching().subscribe(() => {
         this.matchingStatus = MatchingStatus.SEARCHING;
-      });
-
-    this.matching.onPeerSkipped()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        console.log('[HomeComponent] Peer skipped');
-        this.handlePeerLeft();
-      });
-
-    this.matching.onPeerEnded()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        console.log('[HomeComponent] Peer ended call');
-        this.handlePeerLeft();
-      });
-
-    this.matching.onPeerDisconnected()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        console.log('[HomeComponent] Peer disconnected');
-        this.handlePeerLeft();
-      });
-
-    this.matching.onOffer()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(async (data) => {
-        console.log('[HomeComponent] Received offer');
-        if (!this.roomId || !this.peerConnection) {
-          console.warn('[HomeComponent] Ignoring offer - no room or peerConnection');
-          return;
-        }
-
-        try {
-          await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-
-          for (const c of this.pendingCandidates) {
-            await this.peerConnection.addIceCandidate(new RTCIceCandidate(c));
-          }
-          this.pendingCandidates = [];
-
-          const answer = await this.peerConnection.createAnswer();
-          await this.peerConnection.setLocalDescription(answer);
-          this.matching.sendAnswer(this.roomId, answer);
-          console.log('[HomeComponent] Sent answer');
-        } catch (err) {
-          console.error('[HomeComponent] Error handling offer:', err);
-        }
-      });
-
-    this.matching.onAnswer()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(async (data) => {
-        console.log('[HomeComponent] Received answer');
-        if (!this.peerConnection) {
-          console.warn('[HomeComponent] Ignoring answer - no peerConnection');
-          return;
-        }
-
-        try {
-          await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-
-          for (const c of this.pendingCandidates) {
-            await this.peerConnection.addIceCandidate(new RTCIceCandidate(c));
-          }
-          this.pendingCandidates = [];
-        } catch (err) {
-          console.error('[HomeComponent] Error handling answer:', err);
-        }
-      });
-
-    this.matching.onIceCandidate()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(async (data) => {
-        if (!this.peerConnection) {
-          console.warn('[HomeComponent] Ignoring ICE candidate - no peerConnection');
-          return;
-        }
-
-        try {
-          if (!this.peerConnection.remoteDescription) {
-            console.log('[HomeComponent] Queueing ICE candidate (no remote description yet)');
-            this.pendingCandidates.push(data.candidate);
-            return;
-          }
-
-          await this.peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-        } catch (err) {
-          console.error('[HomeComponent] Error adding ICE candidate:', err);
-        }
-      });
+      }),
+      this.matching.onPeerSkipped().subscribe(() => this.handlePeerLeft()),
+      this.matching.onPeerEnded().subscribe(() => this.handlePeerLeft()),
+      this.matching.onPeerDisconnected().subscribe(() => this.handlePeerLeft())
+    );
   }
 
   ngOnDestroy() {
     this.cleanup();
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-
-  toggleVideoDisplay() {
-    // Cycle through modes: both -> local -> remote -> both
-    if (this.videoDisplayMode === 'both') {
-      this.videoDisplayMode = 'local';
-    } else if (this.videoDisplayMode === 'local') {
-      this.videoDisplayMode = 'remote';
-    } else {
-      this.videoDisplayMode = 'both';
-    }
-  }
-
-  setVideoDisplay(mode: 'both' | 'local' | 'remote') {
-    this.videoDisplayMode = mode;
+    this.subs.forEach((s) => s.unsubscribe());
   }
 
   async startMatching() {
     if (this.matchingStatus === MatchingStatus.SEARCHING) return;
-
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
       this.snackBar.open(
         'Trình duyệt không hỗ trợ camera/micro hoặc cần truy cập qua HTTPS/localhost. Hãy dùng Chrome/Firefox và mở qua localhost hoặc HTTPS.',
@@ -234,44 +108,25 @@ export class HomeComponent implements OnInit, OnDestroy {
       );
       return;
     }
-
     try {
-      console.log('[HomeComponent] Requesting camera/mic...');
       this.localStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'user'
-        },
+        video: true,
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 44100
+          autoGainControl: true
         }
       });
-
-      console.log('[HomeComponent] Got local stream:', {
-        videoTracks: this.localStream.getVideoTracks().length,
-        audioTracks: this.localStream.getAudioTracks().length
-      });
-
       this.attachLocalStream();
       this.matchingStatus = MatchingStatus.SEARCHING;
       this.matching.joinQueue(this.filterForm.value);
-    } catch (err: any) {
-      console.error('[HomeComponent] getUserMedia failed:', err);
-      let errorMsg = 'Không thể truy cập camera/micro. ';
-      if (err.name === 'NotAllowedError') {
-        errorMsg += 'Quyền truy cập bị từ chối. Vui lòng cho phép truy cập camera/micro trong trình duyệt.';
-      } else if (err.name === 'NotFoundError') {
-        errorMsg += 'Không tìm thấy camera/micro.';
-      } else if (err.name === 'NotReadableError') {
-        errorMsg += 'Camera/micro đang được sử dụng bởi ứng dụng khác.';
-      } else {
-        errorMsg += 'Kiểm tra quyền trình duyệt hoặc thử mở qua https:// hoặc localhost.';
-      }
-      this.snackBar.open(errorMsg, 'Đóng', { duration: 5000 });
+    } catch (err) {
+      console.error('getUserMedia failed:', err);
+      this.snackBar.open(
+        'Không thể truy cập camera/micro. Kiểm tra quyền trình duyệt hoặc thử mở qua https:// hoặc localhost.',
+        'Đóng',
+        { duration: 5000 }
+      );
     }
   }
 
@@ -372,108 +227,94 @@ export class HomeComponent implements OnInit, OnDestroy {
     return this.admin.isAdmin();
   }
 
-  private isMobileDevice(): boolean {
-    return window.innerWidth <= 768;
+  videoDisplayMode: 'both' | 'local' | 'remote' = 'both';
+
+  toggleVideoDisplay(): void {
+    switch (this.videoDisplayMode) {
+      case 'both':
+        this.videoDisplayMode = 'local';
+        break;
+      case 'local':
+        this.videoDisplayMode = 'remote';
+        break;
+      case 'remote':
+        this.videoDisplayMode = 'both';
+        break;
+    }
   }
 
   private attachLocalStream() {
     setTimeout(() => {
       const el = this.localVideoRef?.nativeElement;
       if (el && this.localStream) {
+        // Ensure local preview never plays back captured microphone.
         el.muted = true;
         el.volume = 0;
         el.srcObject = this.localStream;
-        // Ensure video plays
-        el.play().catch(err => console.warn('Local video play failed:', err));
       }
     }, 0);
   }
 
   private async setupPeerConnection() {
-    // Fetch TURN credentials if available
     const token = this.auth.getToken();
 
     if (token) {
       try {
         const res = await fetch(`${getApiUrl()}/api/webrtc/turn-credentials`, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: AbortSignal.timeout(5000) // 5 second timeout
+          headers: { Authorization: `Bearer ${token}` }
         });
-
+      
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data.iceServers) && data.iceServers.length > 0) {
-            this.config.iceServers = data.iceServers;
-            console.log('[HomeComponent] Loaded TURN servers:', data.iceServers.length);
-          } else {
-            console.warn('[HomeComponent] No ICE servers in response');
+          if (data?.iceServers?.length) {
+            this.config.iceServers = data.iceServers; // lấy TURN/STUN từ Metered
           }
         } else {
-          console.warn('[HomeComponent] TURN credentials fetch failed:', res.status);
+          const body = await res.text().catch(() => '');
+          console.warn('TURN credentials fetch failed:', res.status, body);
         }
-      } catch (e: any) {
-        console.warn('[HomeComponent] TURN fetch error:', e.message);
+      } catch (e) {
+        console.warn('TURN fetch error:', e);
       }
     }
-
-    this.pendingCandidates = [];
-
-    // Close existing connection if any
-    if (this.peerConnection) {
-      this.peerConnection.close();
-    }
-
     this.peerConnection = new RTCPeerConnection(this.config);
+    this.localStream?.getTracks().forEach((t) => this.peerConnection!.addTrack(t, this.localStream!));
 
-    // Add local tracks
-    if (this.localStream) {
-      this.localStream.getTracks().forEach((track) => {
-        this.peerConnection!.addTrack(track, this.localStream!);
-      });
-    }
+    this.peerConnection.ontrack = (e) => {
+      setTimeout(() => {
+        const el = this.remoteVideoRef?.nativeElement;
+        if (el && e.streams[0]) el.srcObject = e.streams[0];
+      }, 0);
+    };
 
-    // Handle remote track
-    this.peerConnection.ontrack = (event) => {
-      console.log('[HomeComponent] Remote track received');
-      const el = this.remoteVideoRef?.nativeElement;
-      if (el && event.streams[0]) {
-        el.srcObject = event.streams[0];
-        el.play().catch(err => console.warn('Remote video play failed:', err));
+    this.peerConnection.onicecandidate = (e) => {
+      if (e.candidate && this.roomId) {
+        this.matching.sendIceCandidate(this.roomId, e.candidate);
       }
     };
 
-    // Handle ICE candidates
-    this.peerConnection.onicecandidate = (event) => {
-      if (event.candidate && this.roomId) {
-        this.matching.sendIceCandidate(this.roomId, event.candidate.toJSON());
-      }
-    };
+    this.subs.push(
+      this.matching.onOffer().subscribe(async (data) => {
+        if (!this.roomId || !this.peerConnection) return;
+        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+        const answer = await this.peerConnection.createAnswer();
+        await this.peerConnection.setLocalDescription(answer);
+        this.matching.sendAnswer(this.roomId, answer);
+      }),
+      this.matching.onAnswer().subscribe(async (data) => {
+        if (!this.peerConnection) return;
+        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+      }),
+      this.matching.onIceCandidate().subscribe(async (data) => {
+        if (!this.peerConnection) return;
+        await this.peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      })
+    );
 
-    // Monitor ICE connection state
-    this.peerConnection.oniceconnectionstatechange = () => {
-      console.log('[HomeComponent] ICE connection state:', this.peerConnection?.iceConnectionState);
-      if (this.peerConnection?.iceConnectionState === 'failed') {
-        console.error('[HomeComponent] ICE connection failed - network issue or TURN unreachable');
-      }
-    };
-
-    this.peerConnection.onconnectionstatechange = () => {
-      console.log('[HomeComponent] Connection state:', this.peerConnection?.connectionState);
-    };
-
-    // If initiator, create and send offer
     if (this.roomId && this.isInitiator) {
-      try {
-        const offer = await this.peerConnection.createOffer({
-          offerToReceiveAudio: true,
-          offerToReceiveVideo: true
-        });
-        await this.peerConnection.setLocalDescription(offer);
-        this.matching.sendOffer(this.roomId, offer);
-        console.log('[HomeComponent] Sent offer');
-      } catch (err) {
-        console.error('[HomeComponent] Failed to create offer:', err);
-      }
+      const offer = await this.peerConnection.createOffer();
+      await this.peerConnection.setLocalDescription(offer);
+      this.matching.sendOffer(this.roomId, offer);
     }
   }
 
@@ -484,10 +325,8 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   private resetPeerState() {
-    if (this.peerConnection) {
-      this.peerConnection.close();
-      this.peerConnection = null;
-    }
+    this.peerConnection?.close();
+    this.peerConnection = null;
     this.roomId = null;
     this.peerUserId = null;
     const rv = this.remoteVideoRef?.nativeElement;
@@ -496,22 +335,11 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   private cleanup() {
     this.resetPeerState();
-
-    if (this.localStream) {
-      this.localStream.getTracks().forEach((track) => {
-        track.stop();
-        track.enabled = false;
-      });
-      this.localStream = null;
-    }
-
+    this.localStream?.getTracks().forEach((t) => t.stop());
+    this.localStream = null;
     const lv = this.localVideoRef?.nativeElement;
-    if (lv) {
-      lv.srcObject = null;
-      lv.pause();
-    }
-
-    this.isMicMuted = false;
-    this.isCameraOff = false;
+    if (lv) lv.srcObject = null;
   }
+
+
 }
