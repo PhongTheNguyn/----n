@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { io, Socket } from 'socket.io-client';
-import { Observable, Subject } from 'rxjs';
+import { Observable, Subject, fromEvent } from 'rxjs';
 import { getWsUrl } from '../core/api-config';
 import { AuthService } from './auth.service';
 
@@ -21,15 +21,16 @@ export class MatchingService {
   private peerEnded$ = new Subject<void>();
   private peerDisconnected$ = new Subject<void>();
 
+  private offerSubject = new Subject<{ offer: RTCSessionDescriptionInit; from: string }>();
+  private answerSubject = new Subject<{ answer: RTCSessionDescriptionInit; from: string }>();
+  private iceCandidateSubject = new Subject<{ candidate: RTCIceCandidateInit; from: string }>();
+
+  private socketInitialized = false;
+
   constructor(private auth: AuthService) {}
 
-  connect(): Socket | null {
-    const token = this.auth.getToken();
-    if (!token || this.socket?.connected) return this.socket;
-
-    this.socket = io(getWsUrl(), {
-      auth: { token }
-    });
+  private initSocketListeners(): void {
+    if (this.socketInitialized || !this.socket) return;
 
     this.socket.on('matched', (data: { roomId: string; peerId: string; peerUserId?: string; isInitiator: boolean }) => {
       this.matched$.next({ ...data, peerUserId: data.peerUserId || '' });
@@ -51,11 +52,59 @@ export class MatchingService {
       this.peerDisconnected$.next();
     });
 
+    this.socket.on('offer', (data: { offer: RTCSessionDescriptionInit; from: string }) => {
+      this.offerSubject.next(data);
+    });
+
+    this.socket.on('answer', (data: { answer: RTCSessionDescriptionInit; from: string }) => {
+      this.answerSubject.next(data);
+    });
+
+    this.socket.on('ice-candidate', (data: { candidate: RTCIceCandidateInit; from: string }) => {
+      this.iceCandidateSubject.next(data);
+    });
+
+    this.socketInitialized = true;
+  }
+
+  connect(): Socket | null {
+    const token = this.auth.getToken();
+    if (!token) return null;
+
+    if (this.socket?.connected) {
+      return this.socket;
+    }
+
+    this.socket = io(getWsUrl(), {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
+
+    this.socket.on('connect', () => {
+      console.log('Socket connected:', this.socket?.id);
+    });
+
+    this.socket.on('connect_error', (err) => {
+      console.error('Socket connect error:', err.message);
+    });
+
+    this.socket.on('disconnect', (reason) => {
+      console.log('Socket disconnected:', reason);
+      this.socketInitialized = false;
+    });
+
+    this.initSocketListeners();
+
     return this.socket;
   }
 
   disconnect(): void {
+    this.socketInitialized = false;
     this.socket?.disconnect();
+    this.socket = null;
   }
 
   joinQueue(filters: MatchFilters): void {
@@ -88,49 +137,42 @@ export class MatchingService {
   }
 
   onMatched(): Observable<{ roomId: string; peerId: string; peerUserId: string; isInitiator: boolean }> {
+    this.connect();
     return this.matched$.asObservable();
   }
 
   onSearching(): Observable<void> {
+    this.connect();
     return this.searching$.asObservable();
   }
 
   onPeerSkipped(): Observable<void> {
+    this.connect();
     return this.peerSkipped$.asObservable();
   }
 
   onPeerEnded(): Observable<void> {
+    this.connect();
     return this.peerEnded$.asObservable();
   }
 
   onPeerDisconnected(): Observable<void> {
+    this.connect();
     return this.peerDisconnected$.asObservable();
   }
 
   onOffer(): Observable<{ offer: RTCSessionDescriptionInit; from: string }> {
-    return new Observable((sub) => {
-      this.socket?.on('offer', (data: { offer: RTCSessionDescriptionInit; from: string }) => {
-        sub.next(data);
-      });
-      return () => this.socket?.off('offer');
-    });
+    this.connect();
+    return this.offerSubject.asObservable();
   }
 
   onAnswer(): Observable<{ answer: RTCSessionDescriptionInit; from: string }> {
-    return new Observable((sub) => {
-      this.socket?.on('answer', (data: { answer: RTCSessionDescriptionInit; from: string }) => {
-        sub.next(data);
-      });
-      return () => this.socket?.off('answer');
-    });
+    this.connect();
+    return this.answerSubject.asObservable();
   }
 
   onIceCandidate(): Observable<{ candidate: RTCIceCandidateInit; from: string }> {
-    return new Observable((sub) => {
-      this.socket?.on('ice-candidate', (data: { candidate: RTCIceCandidateInit; from: string }) => {
-        sub.next(data);
-      });
-      return () => this.socket?.off('ice-candidate');
-    });
+    this.connect();
+    return this.iceCandidateSubject.asObservable();
   }
 }
