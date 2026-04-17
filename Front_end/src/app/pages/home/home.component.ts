@@ -36,6 +36,8 @@ export class HomeComponent implements OnInit, OnDestroy {
   localStream: MediaStream | null = null;
   peerConnection: RTCPeerConnection | null = null;
   private subs: Subscription[] = [];
+  private signalSubs: Subscription[] = [];
+  private pendingCandidates: RTCIceCandidateInit[] = [];
   private config: RTCConfiguration = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
   };
@@ -91,11 +93,51 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.matching.onPeerEnded().subscribe(() => this.handlePeerLeft()),
       this.matching.onPeerDisconnected().subscribe(() => this.handlePeerLeft())
     );
+
+    this.signalSubs.push(
+      this.matching.onOffer().subscribe(async (data) => {
+        if (!this.roomId || !this.peerConnection) return;
+
+        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+
+        for (const c of this.pendingCandidates) {
+          await this.peerConnection.addIceCandidate(new RTCIceCandidate(c));
+        }
+        this.pendingCandidates = [];
+
+        const answer = await this.peerConnection.createAnswer();
+        await this.peerConnection.setLocalDescription(answer);
+        this.matching.sendAnswer(this.roomId, answer);
+      }),
+
+      this.matching.onAnswer().subscribe(async (data) => {
+        if (!this.peerConnection) return;
+
+        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+
+        for (const c of this.pendingCandidates) {
+          await this.peerConnection.addIceCandidate(new RTCIceCandidate(c));
+        }
+        this.pendingCandidates = [];
+      }),
+
+      this.matching.onIceCandidate().subscribe(async (data) => {
+        if (!this.peerConnection) return;
+
+        if (!this.peerConnection.remoteDescription) {
+          this.pendingCandidates.push(data.candidate);
+          return;
+        }
+
+        await this.peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      })
+    );
   }
 
   ngOnDestroy() {
     this.cleanup();
     this.subs.forEach((s) => s.unsubscribe());
+    this.signalSubs.forEach((s) => s.unsubscribe());
   }
 
   async startMatching() {
@@ -247,7 +289,7 @@ export class HomeComponent implements OnInit, OnDestroy {
         const res = await fetch(`${getApiUrl()}/api/webrtc/turn-credentials`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-      
+
         if (res.ok) {
           const data = await res.json();
           if (data?.iceServers?.length) {
@@ -261,39 +303,32 @@ export class HomeComponent implements OnInit, OnDestroy {
         console.warn('TURN fetch error:', e);
       }
     }
+
+    this.pendingCandidates = [];
     this.peerConnection = new RTCPeerConnection(this.config);
     this.localStream?.getTracks().forEach((t) => this.peerConnection!.addTrack(t, this.localStream!));
 
-    this.peerConnection.ontrack = (e) => {
-      setTimeout(() => {
-        const el = this.remoteVideoRef?.nativeElement;
-        if (el && e.streams[0]) el.srcObject = e.streams[0];
-      }, 0);
+    this.peerConnection.ontrack = async (e) => {
+      const el = this.remoteVideoRef?.nativeElement;
+      if (el && e.streams[0]) {
+        el.srcObject = e.streams[0];
+        try {
+          await el.play();
+        } catch (err) {
+          console.warn('remote video play blocked:', err);
+        }
+      }
     };
 
     this.peerConnection.onicecandidate = (e) => {
       if (e.candidate && this.roomId) {
-        this.matching.sendIceCandidate(this.roomId, e.candidate);
+        this.matching.sendIceCandidate(this.roomId, e.candidate.toJSON());
       }
     };
 
-    this.subs.push(
-      this.matching.onOffer().subscribe(async (data) => {
-        if (!this.roomId || !this.peerConnection) return;
-        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-        const answer = await this.peerConnection.createAnswer();
-        await this.peerConnection.setLocalDescription(answer);
-        this.matching.sendAnswer(this.roomId, answer);
-      }),
-      this.matching.onAnswer().subscribe(async (data) => {
-        if (!this.peerConnection) return;
-        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-      }),
-      this.matching.onIceCandidate().subscribe(async (data) => {
-        if (!this.peerConnection) return;
-        await this.peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-      })
-    );
+    this.peerConnection.oniceconnectionstatechange = () => {
+      console.log('ICE state:', this.peerConnection?.iceConnectionState);
+    };
 
     if (this.roomId && this.isInitiator) {
       const offer = await this.peerConnection.createOffer();
