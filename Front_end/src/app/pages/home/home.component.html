@@ -67,7 +67,6 @@
           </div>
           <video #remoteVideo autoplay playsinline class="video-element" *ngIf="isConnected"></video>
           <p class="status-text overlay-text" *ngIf="isConnected && videoDisplayMode !== 'remote'">{{statusText}}</p>
-          <p class="local-label" *ngIf="videoDisplayMode === 'remote'">Đối phương</p>
         </div>
 
         <!-- Local Video -->
@@ -77,7 +76,7 @@
             <div class="avatar-small">
               <mat-icon>person</mat-icon>
             </div>
-            <p class="local-label">Bạn</p>
+
           </div>
           <div class="camera-off-overlay" *ngIf="isCameraOff && localStream">
             <mat-icon>videocam_off</mat-icon>
