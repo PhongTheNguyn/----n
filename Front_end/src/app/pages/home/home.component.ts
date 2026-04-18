@@ -227,6 +227,22 @@ export class HomeComponent implements OnInit, OnDestroy {
     return this.admin.isAdmin();
   }
 
+  videoDisplayMode: 'both' | 'local' | 'remote' = 'both';
+
+  toggleVideoDisplay(): void {
+    switch (this.videoDisplayMode) {
+      case 'both':
+        this.videoDisplayMode = 'local';
+        break;
+      case 'local':
+        this.videoDisplayMode = 'remote';
+        break;
+      case 'remote':
+        this.videoDisplayMode = 'both';
+        break;
+    }
+  }
+
   private attachLocalStream() {
     setTimeout(() => {
       const el = this.localVideoRef?.nativeElement;
@@ -325,5 +341,5 @@ export class HomeComponent implements OnInit, OnDestroy {
     if (lv) lv.srcObject = null;
   }
 
-  
+
 }
