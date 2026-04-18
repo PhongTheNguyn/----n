@@ -3,13 +3,13 @@
     <span class="toolbar-title">Video Call Random</span>
     <span class="spacer"></span>
     <button mat-icon-button *ngIf="isAdmin" routerLink="/admin" matTooltip="Admin">
-      <mat-icon>admin_panel_settings</mat-icon>
+      <i class="fas fa-user-shield"></i>
     </button>
     <button mat-icon-button (click)="goToProfile()" matTooltip="Hồ sơ">
-      <mat-icon>account_circle</mat-icon>
+      <i class="fas fa-user-circle"></i>
     </button>
     <button mat-icon-button (click)="logout()" matTooltip="Đăng xuất">
-      <mat-icon>logout</mat-icon>
+      <i class="fas fa-sign-out-alt"></i>
     </button>
   </mat-toolbar>
 
@@ -29,7 +29,6 @@
                   {{gender.label}}
                 </mat-option>
               </mat-select>
-              <mat-icon matPrefix>wc</mat-icon>
             </mat-form-field>
 
             <mat-form-field appearance="outline">
@@ -39,11 +38,10 @@
                   {{country.label}}
                 </mat-option>
               </mat-select>
-              <mat-icon matPrefix>public</mat-icon>
             </mat-form-field>
 
             <button mat-raised-button color="primary" class="start-button" (click)="startMatching()" [disabled]="isSearching">
-              <mat-icon>videocam</mat-icon>
+              <i class="fas fa-video"></i>
               Bắt đầu ghép
             </button>
           </form>
@@ -74,12 +72,12 @@
           <video #localVideo autoplay muted playsinline class="video-element local-video-el"></video>
           <div class="video-placeholder local-placeholder" *ngIf="!localStream">
             <div class="avatar-small">
-              <mat-icon>person</mat-icon>
+              <i class="fas fa-user"></i>
             </div>
 
           </div>
           <div class="camera-off-overlay" *ngIf="isCameraOff && localStream">
-            <mat-icon>videocam_off</mat-icon>
+            <i class="fas fa-video-slash"></i>
           </div>
           <p class="local-label" *ngIf="videoDisplayMode === 'local' && localStream">Bạn</p>
         </div>
@@ -94,27 +92,29 @@
       <!-- Control Buttons -->
       <div class="controls">
         <button mat-fab color="warn" (click)="toggleMic()" [class.muted]="isMicMuted" [matTooltip]="isMicMuted ? 'Bật mic' : 'Tắt mic'">
-          <mat-icon>{{isMicMuted ? 'mic_off' : 'mic'}}</mat-icon>
+          <i class="fas fa-microphone" *ngIf="!isMicMuted"></i>
+          <i class="fas fa-microphone-slash" *ngIf="isMicMuted"></i>
         </button>
 
         <button mat-fab color="primary" (click)="toggleCamera()" [class.camera-off]="isCameraOff" [matTooltip]="isCameraOff ? 'Bật camera' : 'Tắt camera'">
-          <mat-icon>{{isCameraOff ? 'videocam_off' : 'videocam'}}</mat-icon>
+          <i class="fas fa-video" *ngIf="!isCameraOff"></i>
+          <i class="fas fa-video-slash" *ngIf="isCameraOff"></i>
         </button>
 
         <button mat-fab color="accent" (click)="nextMatch()" *ngIf="isConnected" matTooltip="Bỏ qua">
-          <mat-icon>skip_next</mat-icon>
+          <i class="fas fa-forward"></i>
         </button>
 
         <button mat-fab color="default" (click)="openReportDialog()" *ngIf="isConnected" matTooltip="Báo cáo">
-          <mat-icon>flag</mat-icon>
+          <i class="fas fa-flag"></i>
         </button>
 
         <button mat-fab color="default" (click)="blockUser()" *ngIf="isConnected" matTooltip="Chặn">
-          <mat-icon>block</mat-icon>
+          <i class="fas fa-ban"></i>
         </button>
 
         <button mat-fab color="warn" (click)="stopMatching()" matTooltip="Kết thúc">
-          <mat-icon>call_end</mat-icon>
+          <i class="fas fa-phone-slash"></i>
         </button>
       </div>
     </div>

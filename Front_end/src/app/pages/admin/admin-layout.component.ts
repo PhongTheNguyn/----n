@@ -24,17 +24,17 @@ import { AuthService } from '../../services/auth.service';
   template: `
     <mat-toolbar color="primary">
       <button mat-icon-button (click)="sidenav?.toggle()">
-        <mat-icon>menu</mat-icon>
+        <i class="fas fa-bars"></i>
       </button>
       <span class="spacer"></span>
       <span>Admin Panel</span>
       <span class="spacer"></span>
       <button mat-button routerLink="/home">
-        <mat-icon>home</mat-icon>
+        <i class="fas fa-home"></i>
         Về trang chủ
       </button>
       <button mat-button (click)="logout()">
-        <mat-icon>logout</mat-icon>
+        <i class="fas fa-sign-out-alt"></i>
         Đăng xuất
       </button>
     </mat-toolbar>
@@ -43,23 +43,23 @@ import { AuthService } from '../../services/auth.service';
       <mat-sidenav #sidenav mode="side" opened class="admin-sidenav">
         <mat-nav-list>
           <a mat-list-item routerLink="/admin" routerLinkActive="active" [queryParamsHandling]="'preserve'">
-            <mat-icon matListItemIcon>dashboard</mat-icon>
+            <i matListItemIcon class="fas fa-tachometer-alt"></i>
             <span matListItemTitle>Dashboard</span>
           </a>
           <a mat-list-item routerLink="/admin/reports" routerLinkActive="active">
-            <mat-icon matListItemIcon>flag</mat-icon>
+            <i matListItemIcon class="fas fa-flag"></i>
             <span matListItemTitle>Báo cáo</span>
           </a>
           <a mat-list-item routerLink="/admin/sessions" routerLinkActive="active">
-            <mat-icon matListItemIcon>phone</mat-icon>
+            <i matListItemIcon class="fas fa-phone-alt"></i>
             <span matListItemTitle>Phiên gọi</span>
           </a>
           <a mat-list-item routerLink="/admin/logs" routerLinkActive="active">
-            <mat-icon matListItemIcon>list_alt</mat-icon>
+            <i matListItemIcon class="fas fa-book"></i>
             <span matListItemTitle>Nhật ký</span>
           </a>
           <a mat-list-item routerLink="/admin/config" routerLinkActive="active">
-            <mat-icon matListItemIcon>settings</mat-icon>
+            <i matListItemIcon class="fas fa-cog"></i>
             <span matListItemTitle>Cấu hình</span>
           </a>
         </mat-nav-list>

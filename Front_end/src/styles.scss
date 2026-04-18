@@ -57,6 +57,36 @@ body {
   animation: fadeIn 0.5s ease-out;
 }
 
+/* Font Awesome Global Styles */
+.fas, .far, .fal, .fab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-style: normal;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+/* Control Buttons Icon Styles */
+.controls button .fas,
+.controls button .far,
+.controls button .fal,
+.controls button .fab {
+  font-size: 24px;
+  width: 28px;
+  height: 28px;
+}
+
+/* Camera Off Overlay Icon Styles */
+.camera-off-overlay {
+  .fas, .far, .fal, .fab {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    color: white;
+  }
+}
+
 /* Responsive Utilities */
 @media (max-width: 768px) {
   .mobile-hidden {
