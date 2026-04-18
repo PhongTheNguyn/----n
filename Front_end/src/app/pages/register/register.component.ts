@@ -17,7 +17,7 @@ export class RegisterComponent {
 
   genders = [
     { value: 'male', label: 'Nam' },
-    { value: 'female', label: 'Nữ' },
+    { value: 'female', label: 'Nữ' }
   ];
 
   countries = [

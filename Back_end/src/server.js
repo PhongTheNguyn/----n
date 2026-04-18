@@ -67,85 +67,129 @@ app.use('/api/webrtc', webrtcRoutes);
 
 const PORT = process.env.PORT || 3000;
 
+// In-memory storage (consider Redis for production scaling)
 const queue = [];
-const rooms = new Map(); // roomId -> { peerIds: [id1, id2], userA, userB, sessionId? }
+const rooms = new Map(); // roomId -> { peerIds: [socketId1, socketId2], userA, userB, sessionId }
 
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
-  if (!token) return next(new Error('Chưa đăng nhập'));
+  if (!token) {
+    console.log('[Socket] Connection rejected: No token');
+    return next(new Error('Chưa đăng nhập'));
+  }
   try {
     const jwt = require('jsonwebtoken');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     socket.userId = decoded.userId;
+    console.log('[Socket] User connected:', socket.userId, 'socket:', socket.id);
     next();
   } catch (err) {
+    console.log('[Socket] Token validation failed:', err.message);
     next(new Error('Token không hợp lệ'));
   }
 });
 
 io.on('connection', (socket) => {
+  console.log(`[Socket] Client connected: ${socket.id} (user: ${socket.userId})`);
+
   socket.on('join-queue', async (filters) => {
+    console.log(`[Socket] User ${socket.userId} joining queue with filters:`, filters);
     const { gender, country } = filters || {};
     const me = { socketId: socket.id, userId: socket.userId, gender: gender || 'all', country: country || 'all' };
 
-    const u = await prisma.user.findUnique({ where: { id: socket.userId }, select: { isBanned: true, bannedUntil: true } }).catch(() => null);
+    // Check if user is banned
+    const u = await prisma.user.findUnique({
+      where: { id: socket.userId },
+      select: { isBanned: true, bannedUntil: true }
+    }).catch(() => null);
+
     if (u?.isBanned && (u.bannedUntil == null || u.bannedUntil > new Date())) {
+      console.log(`[Socket] User ${socket.userId} is banned, cannot join queue`);
       socket.emit('searching');
       return;
     }
 
+    // Get blocked users
     const blockedByMe = await prisma.blocked_users
       .findMany({ where: { blocker_id: socket.userId }, select: { blocked_id: true } })
       .then((rows) => new Set(rows.map((r) => r.blocked_id)))
       .catch(() => new Set());
 
+    // Find match
     let match = null;
-    for (const q of queue) {
+    const matchIndex = -1;
+    for (let i = 0; i < queue.length; i++) {
+      const q = queue[i];
       if (q.socketId === socket.id) continue;
       if (blockedByMe.has(q.userId)) continue;
+
       const blockedByPeer = await prisma.blocked_users
         .findFirst({ where: { blocker_id: q.userId, blocked_id: socket.userId } })
         .catch(() => null);
       if (blockedByPeer) continue;
+
       const gMatch = q.gender === 'all' || me.gender === 'all' || q.gender === me.gender;
       const cMatch = q.country === 'all' || me.country === 'all' || q.country === me.country;
+
       if (gMatch && cMatch) {
         match = q;
+        queue.splice(i, 1);
         break;
       }
     }
 
     if (match) {
-      const roomId = `room-${Date.now()}`;
-      const idx = queue.findIndex((q) => q.socketId === match.socketId);
-      queue.splice(idx, 1);
+      console.log(`[Socket] Match found: ${socket.userId} <-> ${match.userId}`);
+      const roomId = `room-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-      rooms.set(roomId, {
+      const roomData = {
         peerIds: [socket.id, match.socketId],
         userA: socket.userId,
         userB: match.userId,
         sessionId: null
-      });
-      socket.join(roomId);
-      io.sockets.sockets.get(match.socketId)?.join(roomId);
+      };
+      rooms.set(roomId, roomData);
 
-      prisma.call_sessions
-        .create({
+      // Join both sockets to room
+      socket.join(roomId);
+      const peerSocket = io.sockets.sockets.get(match.socketId);
+      if (peerSocket) {
+        peerSocket.join(roomId);
+      }
+
+      // Create call session record
+      try {
+        const session = await prisma.call_sessions.create({
           data: {
             user_a_id: socket.userId,
             user_b_id: match.userId,
             room_id: roomId
           }
-        })
-        .then((s) => {
-          const r = rooms.get(roomId);
-          if (r) r.sessionId = s.id;
-        })
-        .catch((e) => console.error('create call_session:', e));
+        });
+        roomData.sessionId = session.id;
+        console.log(`[Socket] Call session created: ${session.id}`);
+      } catch (e) {
+        console.error('[Socket] Failed to create call session:', e);
+      }
 
-      socket.emit('matched', { roomId, peerId: match.socketId, peerUserId: match.userId, isInitiator: true });
-      io.to(match.socketId).emit('matched', { roomId, peerId: socket.id, peerUserId: socket.userId, isInitiator: false });
+      // Notify both peers
+      socket.emit('matched', {
+        roomId,
+        peerId: match.socketId,
+        peerUserId: match.userId,
+        isInitiator: true
+      });
+
+      if (peerSocket) {
+        peerSocket.emit('matched', {
+          roomId,
+          peerId: socket.id,
+          peerUserId: socket.userId,
+          isInitiator: false
+        });
+      }
     } else {
+      console.log(`[Socket] No match, user ${socket.userId} added to queue`);
       queue.push(me);
       socket.emit('searching');
     }
@@ -153,60 +197,135 @@ io.on('connection', (socket) => {
 
   socket.on('leave-queue', () => {
     const idx = queue.findIndex((q) => q.socketId === socket.id);
-    if (idx >= 0) queue.splice(idx, 1);
+    if (idx >= 0) {
+      queue.splice(idx, 1);
+      console.log(`[Socket] User ${socket.userId} left queue`);
+    }
     socket.emit('left-queue');
   });
 
   socket.on('offer', ({ roomId, offer }) => {
+    const room = rooms.get(roomId);
+    if (!room) {
+      console.warn(`[Socket] Offer for non-existent room: ${roomId}`);
+      return;
+    }
     socket.to(roomId).emit('offer', { offer, from: socket.id });
+    console.log(`[Socket] Offer forwarded in room ${roomId} from ${socket.userId}`);
   });
 
   socket.on('answer', ({ roomId, answer }) => {
+    const room = rooms.get(roomId);
+    if (!room) {
+      console.warn(`[Socket] Answer for non-existent room: ${roomId}`);
+      return;
+    }
     socket.to(roomId).emit('answer', { answer, from: socket.id });
+    console.log(`[Socket] Answer forwarded in room ${roomId} from ${socket.userId}`);
   });
 
   socket.on('ice-candidate', ({ roomId, candidate }) => {
+    const room = rooms.get(roomId);
+    if (!room) {
+      console.warn(`[Socket] ICE candidate for non-existent room: ${roomId}`);
+      return;
+    }
     socket.to(roomId).emit('ice-candidate', { candidate, from: socket.id });
   });
 
-  function endCall(roomId) {
-    const r = rooms.get(roomId);
-    if (r) {
-      (r.peerIds || r).forEach((id) => io.sockets.sockets.get(id)?.leave(roomId));
-      if (r.sessionId) {
-        prisma.call_sessions.update({ where: { id: r.sessionId }, data: { ended_at: new Date() } }).catch(() => {});
-      }
-      rooms.delete(roomId);
-    }
-  }
-
   socket.on('skip', (roomId) => {
-    socket.to(roomId).emit('peer-skipped');
-    endCall(roomId);
+    console.log(`[Socket] User ${socket.userId} skipping room ${roomId}`);
+    const room = rooms.get(roomId);
+    if (room) {
+      socket.to(roomId).emit('peer-skipped');
+      endCall(roomId);
+    }
   });
 
   socket.on('end-call', (roomId) => {
-    socket.to(roomId).emit('peer-ended');
-    endCall(roomId);
+    console.log(`[Socket] User ${socket.userId} ending call in room ${roomId}`);
+    const room = rooms.get(roomId);
+    if (room) {
+      socket.to(roomId).emit('peer-ended');
+      endCall(roomId);
+    }
   });
 
-  socket.on('disconnect', () => {
-    const idx = queue.findIndex((q) => q.socketId === socket.id);
-    if (idx >= 0) queue.splice(idx, 1);
-    rooms.forEach((r, roomId) => {
-      const peerIds = r.peerIds || r;
-      if (Array.isArray(peerIds) && peerIds.includes(socket.id)) {
-        socket.to(roomId).emit('peer-disconnected');
-        if (r.sessionId) {
-          prisma.call_sessions.update({ where: { id: r.sessionId }, data: { ended_at: new Date() } }).catch(() => {});
+  function endCall(roomId) {
+    const room = rooms.get(roomId);
+    if (room) {
+      console.log(`[Socket] Ending call in room ${roomId}`);
+      // Notify all peers in room
+      room.peerIds.forEach((peerSocketId) => {
+        const peerSocket = io.sockets.sockets.get(peerSocketId);
+        if (peerSocket) {
+          peerSocket.leave(roomId);
         }
-        peerIds.forEach((id) => io.sockets.sockets.get(id)?.leave(roomId));
+      });
+
+      // Update call session
+      if (room.sessionId) {
+        prisma.call_sessions.update({
+          where: { id: room.sessionId },
+          data: { ended_at: new Date() }
+        }).catch(err => console.error('[Socket] Failed to update call session:', err));
+      }
+
+      rooms.delete(roomId);
+      console.log(`[Socket] Room ${roomId} cleaned up`);
+    }
+  }
+
+  socket.on('disconnect', (reason) => {
+    console.log(`[Socket] Client disconnected: ${socket.id} (user: ${socket.userId}), reason: ${reason}`);
+
+    // Remove from queue
+    const queueIdx = queue.findIndex((q) => q.socketId === socket.id);
+    if (queueIdx >= 0) {
+      queue.splice(queueIdx, 1);
+      console.log(`[Socket] User ${socket.userId} removed from queue`);
+    }
+
+    // Handle room cleanup
+    rooms.forEach((room, roomId) => {
+      if (room.peerIds.includes(socket.id)) {
+        console.log(`[Socket] User ${socket.userId} was in room ${roomId}, notifying peer`);
+        socket.to(roomId).emit('peer-disconnected');
+
+        if (room.sessionId) {
+          prisma.call_sessions.update({
+            where: { id: room.sessionId },
+            data: { ended_at: new Date() }
+          }).catch(err => console.error('[Socket] Failed to update call session on disconnect:', err));
+        }
+
+        // Remove all peers from room
+        room.peerIds.forEach((peerSocketId) => {
+          const peerSocket = io.sockets.sockets.get(peerSocketId);
+          if (peerSocket) {
+            peerSocket.leave(roomId);
+          }
+        });
+
         rooms.delete(roomId);
+        console.log(`[Socket] Room ${roomId} deleted due to disconnect`);
       }
     });
   });
 });
 
-server.listen(PORT, '0.0.0.0',() => {
-  console.log(`Server running on http://0.0.0.0:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`[Server] Running on http://0.0.0.0:${PORT}`);
+  console.log(`[Server] CORS origins:`, corsOrigins);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('[Server] SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('[Server] HTTP server closed');
+  });
+  io.close(() => {
+    console.log('[Server] Socket.io server closed');
+  });
 });

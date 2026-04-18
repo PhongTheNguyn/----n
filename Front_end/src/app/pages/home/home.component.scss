@@ -113,8 +113,67 @@
   border-radius: 20px;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 10px;
+  gap: 2px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  // Desktop: both videos visible (default)
+  &.mode-both {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
+
+    .video-box {
+      opacity: 1;
+      transform: scale(1);
+      pointer-events: auto;
+      position: relative;
+      z-index: 1;
+    }
+  }
+
+  // Mobile: local video fullscreen (small window hidden)
+  &.mode-local {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+
+    .remote-video {
+      opacity: 0;
+      transform: scale(0.8);
+      pointer-events: none;
+      position: absolute;
+      z-index: 1;
+    }
+
+    .local-video {
+      opacity: 1;
+      transform: scale(1);
+      pointer-events: auto;
+      position: relative;
+      z-index: 2;
+    }
+  }
+
+  // Mobile: remote video fullscreen (small window hidden)
+  &.mode-remote {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+
+    .local-video {
+      opacity: 0;
+      transform: scale(0.8);
+      pointer-events: none;
+      position: absolute;
+      z-index: 1;
+    }
+
+    .remote-video {
+      opacity: 1;
+      transform: scale(1);
+      pointer-events: auto;
+      position: relative;
+      z-index: 2;
+    }
+  }
 }
 
 .video-box {
@@ -124,12 +183,14 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: 20px;
-  min-width: 0;
-  min-height: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
 
   &.camera-off {
     background: #0a0a0a;
+  }
+
+  &.active {
+    z-index: 10;
   }
 }
 
@@ -241,10 +302,51 @@
 }
 
 .local-label {
-  margin-top: 10px;
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
   font-size: 14px;
   color: white;
   font-weight: 500;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 4px 12px;
+  border-radius: 12px;
+  z-index: 5;
+  white-space: nowrap;
+}
+
+.video-tap-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 16px;
+  font-weight: 500;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  z-index: 20;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 12px 24px;
+  border-radius: 24px;
+  animation: fadeInOut 3s ease-in-out;
+
+  mat-icon {
+    font-size: 24px;
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
 }
 
 .camera-off-overlay {
@@ -346,98 +448,128 @@
   .video-container {
     grid-template-columns: 1fr;
     grid-template-rows: 1fr;
-    aspect-ratio: auto;
-    min-height: calc(100dvh - 170px);
-    max-height: calc(100dvh - 120px);
-  }
+    aspect-ratio: 9 / 16; // Full screen portrait
 
-  .remote-video {
-    grid-column: 1;
-    grid-row: 1;
-    z-index: 1;
-  }
+    // Default mobile view: remote fullscreen, local small in corner
+    &:not(.mode-local):not(.mode-remote) {
+      .remote-video {
+        position: relative;
+        z-index: 1;
+        opacity: 1;
+        transform: scale(1);
+      }
 
-  .local-video {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    width: clamp(84px, 24vw, 120px);
-    aspect-ratio: 3 / 4;
-    border-radius: 12px;
-    overflow: hidden;
-    z-index: 10;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
-    border: 2px solid rgba(255, 255, 255, 0.2);
+      .local-video {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        width: 120px;
+        height: 160px;
+        min-width: 120px;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        z-index: 10;
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        cursor: pointer;
 
-    .video-element {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
+        .local-video-el {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
 
-    &.camera-off {
-      background: #0a0a0a;
-    }
+        .video-placeholder {
+          width: 100%;
+          height: 100%;
 
-    .local-placeholder {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+          .avatar-small {
+            width: 50px;
+            height: 50px;
+            mat-icon {
+              font-size: 30px;
+              width: 30px;
+              height: 30px;
+            }
+          }
 
-    .camera-off-overlay {
-      position: absolute;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.7);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-
-      mat-icon {
-        font-size: 32px;
-        width: 32px;
-        height: 32px;
-        color: white;
+          .local-label {
+            font-size: 12px;
+          }
+        }
       }
     }
 
-    .local-label {
-      position: absolute;
-      bottom: 5px;
-      left: 50%;
-      transform: translateX(-50%);
-      margin: 0;
-      font-size: 12px;
-      color: white;
-      font-weight: 500;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-      white-space: nowrap;
+    // When local is fullscreen
+    &.mode-local {
+      .local-video {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        border-radius: 0;
+
+        .local-video-el {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+      }
+
+      .remote-video {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        width: 120px;
+        height: 160px;
+        min-width: 120px;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        z-index: 10;
+        border: 2px solid rgba(255, 255, 255, 0.1);
+
+        .video-element {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+      }
     }
-  }
 
-  .video-tap-hint {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 5;
-    background: rgba(0, 0, 0, 0.6);
-    padding: 8px 16px;
-    border-radius: 20px;
-    color: white;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    max-width: calc(100% - 24px);
-    text-align: center;
+    // When remote is fullscreen
+    &.mode-remote {
+      .remote-video {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        border-radius: 0;
 
-    mat-icon {
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
+        .video-element {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+      }
+
+      .local-video {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        width: 120px;
+        height: 160px;
+        min-width: 120px;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        z-index: 10;
+        border: 2px solid rgba(255, 255, 255, 0.1);
+
+        .local-video-el {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+      }
     }
   }
 

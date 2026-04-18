@@ -20,7 +20,7 @@ export class ProfileComponent implements OnInit {
 
   genders = [
     { value: 'male', label: 'Nam' },
-    { value: 'female', label: 'Nữ' },
+    { value: 'female', label: 'Nữ' }
   ];
 
   countries = [
