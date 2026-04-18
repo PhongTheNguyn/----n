@@ -25,8 +25,21 @@ const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:4200')
   .filter(Boolean);
 if (corsOrigins.length === 0) corsOrigins.push('http://localhost:4200');
 
+const privateLanOriginRegex = /^https?:\/\/(localhost|127\.0\.0\.1|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2})(:\d+)?$/;
+const corsOriginSet = new Set(corsOrigins);
+const isAllowedOrigin = (origin) => {
+  // Allow non-browser clients (e.g. mobile app/testing tools)
+  if (!origin) return true;
+  return corsOriginSet.has(origin) || privateLanOriginRegex.test(origin);
+};
+
 const io = new Server(server, {
-  cors: { origin: corsOrigins }
+  cors: {
+    origin: (origin, callback) => {
+      callback(isAllowedOrigin(origin) ? null : new Error(`CORS blocked origin: ${origin}`), isAllowedOrigin(origin));
+    },
+    credentials: true
+  }
 });
 
 const uploadDir = process.env.UPLOAD_DIR || './uploads';
@@ -34,7 +47,14 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-app.use(cors({ origin: corsOrigins, credentials: true }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      callback(isAllowedOrigin(origin) ? null : new Error(`CORS blocked origin: ${origin}`), isAllowedOrigin(origin));
+    },
+    credentials: true
+  })
+);
 app.use(express.json());
 app.use('/uploads', express.static(path.resolve(uploadDir)));
 

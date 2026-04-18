@@ -1,5 +1,5 @@
 export const environment = {
-  production: false,
+  production: true,
   apiUrl: 'https://n-jgmm.onrender.com',
   wsUrl: 'https://n-jgmm.onrender.com'
 };
