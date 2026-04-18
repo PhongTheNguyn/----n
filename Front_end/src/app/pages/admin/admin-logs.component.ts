@@ -27,6 +27,7 @@ const ACTION_LABELS: Record<string, string> = {
   ],
   template: `
     <h1>Nhật ký hệ thống</h1>
+    <p class="sub">Theo dõi hoạt động quản trị và bảo mật</p>
     <mat-form-field appearance="outline" class="filter">
       <mat-label>Hành động</mat-label>
       <mat-select [(value)]="actionFilter" (selectionChange)="load()">
@@ -37,7 +38,7 @@ const ACTION_LABELS: Record<string, string> = {
       </mat-select>
     </mat-form-field>
 
-    <table mat-table [dataSource]="dataSource" class="logs-table">
+    <table mat-table [dataSource]="dataSource" class="logs-table mat-elevation-z0">
       <ng-container matColumnDef="action">
         <th mat-header-cell *matHeaderCellDef>Hành động</th>
         <td mat-cell *matCellDef="let l">{{ actionLabel(l.action) }}</td>
@@ -74,10 +75,17 @@ const ACTION_LABELS: Record<string, string> = {
   `,
   styles: [
     `
-      h1 { margin-bottom: 16px; }
+      h1 { margin: 0 0 4px; color: #f9fafb; }
+      .sub { margin: 0 0 16px; color: #cbd5e1; }
       .filter { margin-bottom: 16px; width: 200px; }
-      .logs-table { width: 100%; }
-      th, td { padding: 8px 16px; }
+      .logs-table {
+        width: 100%;
+        background: rgba(247, 248, 252, 0.96);
+        border-radius: 18px;
+        overflow: hidden;
+      }
+      th, td { padding: 10px 16px; }
+      th { color: #334155; font-weight: 700; }
       mat-paginator { margin-top: 16px; }
     `
   ]

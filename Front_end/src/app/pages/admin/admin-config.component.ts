@@ -21,7 +21,8 @@ import { CommonModule } from '@angular/common';
   ],
   template: `
     <h1>Cấu hình tự động xử lý vi phạm</h1>
-    <mat-card>
+    <p class="sub">Thiết lập ngưỡng xử lý để vận hành an toàn và nhất quán</p>
+    <mat-card class="config-card">
       <mat-card-content>
         <p class="hint">Cấu hình ngưỡng số lần report để tự động xử lý (Admin vẫn có thể xử lý thủ công từ trang Báo cáo)</p>
         <mat-form-field appearance="outline">
@@ -48,10 +49,21 @@ import { CommonModule } from '@angular/common';
   `,
   styles: [
     `
-      h1 { margin-bottom: 16px; }
-      .hint { margin-bottom: 16px; color: #666; }
+      h1 { margin: 0 0 4px; color: #f9fafb; }
+      .sub { margin: 0 0 16px; color: #cbd5e1; }
+      .config-card {
+        background: rgba(247, 248, 252, 0.96);
+        border-radius: 20px;
+        box-shadow: 0 14px 32px rgba(0,0,0,0.16);
+      }
+      .hint { margin-bottom: 16px; color: #475569; }
       mat-form-field { display: block; margin-bottom: 8px; max-width: 320px; }
-      button { margin-top: 16px; }
+      button {
+        margin-top: 16px;
+        height: 44px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #5b67f1 0%, #7a5af8 100%) !important;
+      }
     `
   ]
 })

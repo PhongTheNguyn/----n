@@ -32,6 +32,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   isCameraOff = false;
   roomId: string | null = null;
   peerUserId: string | null = null;
+  networkQualityLabel = 'Đang kết nối...';
   isInitiator = false;
   localStream: MediaStream | null = null;
   peerConnection: RTCPeerConnection | null = null;
@@ -82,14 +83,16 @@ export class HomeComponent implements OnInit, OnDestroy {
         this.peerUserId = peerUserId || null;
         this.isInitiator = isInitiator;
         this.matchingStatus = MatchingStatus.CONNECTED;
+        this.snackBar.open('Đã tìm thấy kết nối', 'Đóng', { duration: 2200 });
         this.setupPeerConnection();
       }),
       this.matching.onSearching().subscribe(() => {
         this.matchingStatus = MatchingStatus.SEARCHING;
+        this.networkQualityLabel = 'Đang kết nối...';
       }),
-      this.matching.onPeerSkipped().subscribe(() => this.handlePeerLeft()),
-      this.matching.onPeerEnded().subscribe(() => this.handlePeerLeft()),
-      this.matching.onPeerDisconnected().subscribe(() => this.handlePeerLeft())
+      this.matching.onPeerSkipped().subscribe(() => this.handlePeerLeft('Đối phương đã chuyển người khác')),
+      this.matching.onPeerEnded().subscribe(() => this.handlePeerLeft('Đối phương đã kết thúc cuộc gọi')),
+      this.matching.onPeerDisconnected().subscribe(() => this.handlePeerLeft('Đối phương đã thoát'))
     );
   }
 
@@ -227,6 +230,11 @@ export class HomeComponent implements OnInit, OnDestroy {
     return this.admin.isAdmin();
   }
 
+  get peerDisplayLabel(): string {
+    if (!this.peerUserId) return 'Người lạ';
+    return `Người lạ • ${this.peerUserId.slice(0, 6)}`;
+  }
+
   private attachLocalStream() {
     setTimeout(() => {
       const el = this.localVideoRef?.nativeElement;
@@ -262,6 +270,8 @@ export class HomeComponent implements OnInit, OnDestroy {
       }
     }
     this.peerConnection = new RTCPeerConnection(this.config);
+    this.peerConnection.onconnectionstatechange = () => this.updateNetworkQuality();
+    this.peerConnection.oniceconnectionstatechange = () => this.updateNetworkQuality();
     this.localStream?.getTracks().forEach((t) => this.peerConnection!.addTrack(t, this.localStream!));
 
     this.peerConnection.ontrack = (e) => {
@@ -302,15 +312,38 @@ export class HomeComponent implements OnInit, OnDestroy {
     }
   }
 
-  private handlePeerLeft() {
+  private handlePeerLeft(message?: string) {
+    if (message) {
+      this.snackBar.open(message, 'Đóng', { duration: 2400 });
+    }
     this.resetPeerState();
     this.matchingStatus = MatchingStatus.SEARCHING;
     this.matching.joinQueue(this.filterForm.value);
   }
 
+  private updateNetworkQuality() {
+    const state = this.peerConnection?.iceConnectionState;
+    switch (state) {
+      case 'connected':
+      case 'completed':
+        this.networkQualityLabel = 'Mạng tốt';
+        break;
+      case 'checking':
+        this.networkQualityLabel = 'Mạng trung bình';
+        break;
+      case 'disconnected':
+      case 'failed':
+        this.networkQualityLabel = 'Mạng yếu';
+        break;
+      default:
+        this.networkQualityLabel = 'Đang kết nối...';
+    }
+  }
+
   private resetPeerState() {
     this.peerConnection?.close();
     this.peerConnection = null;
+    this.networkQualityLabel = 'Đang kết nối...';
     this.roomId = null;
     this.peerUserId = null;
     const rv = this.remoteVideoRef?.nativeElement;

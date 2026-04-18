@@ -1,10 +1,10 @@
 {
   "/api": {
-    "target": "https://app-videocall.vercel.app",
+    "target": "http://localhost:3000",
     "secure": false
   },
   "/uploads": {
-    "target": "https://app-videocall.vercel.app",
+    "target": "http://localhost:3000",
     "secure": false
   }
 }

@@ -1,15 +1,18 @@
 <div class="home-container">
   <mat-toolbar color="primary" class="app-toolbar">
-    <span class="toolbar-title">Video Call Random</span>
+    <div class="toolbar-brand">
+      <span class="toolbar-title">Video Random</span>
+      <span class="toolbar-subtitle">{{ isConnected ? 'Đã kết nối' : (isSearching ? 'Đang tìm kiếm...' : 'Sẵn sàng') }}</span>
+    </div>
     <span class="spacer"></span>
     <button mat-icon-button *ngIf="isAdmin" routerLink="/admin" matTooltip="Admin">
-      <mat-icon>admin_panel_settings</mat-icon>
+      <i class="fi fi-rr-shield-check"></i>
     </button>
     <button mat-icon-button (click)="goToProfile()" matTooltip="Hồ sơ">
-      <mat-icon>account_circle</mat-icon>
+      <i class="fi fi-rr-circle-user"></i>
     </button>
     <button mat-icon-button (click)="logout()" matTooltip="Đăng xuất">
-      <mat-icon>logout</mat-icon>
+      <i class="fi fi-rr-sign-out-alt"></i>
     </button>
   </mat-toolbar>
 
@@ -18,7 +21,8 @@
     <div class="filter-section" *ngIf="isIdle">
       <mat-card class="filter-card">
         <mat-card-header>
-          <mat-card-title>Tùy chọn ghép cặp</mat-card-title>
+          <mat-card-title>Kết nối ngẫu nhiên bằng video</mat-card-title>
+          <mat-card-subtitle>Trò chuyện nhanh với người lạ trên toàn thế giới một cách an toàn.</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <form [formGroup]="filterForm" class="filter-form">
@@ -29,7 +33,7 @@
                   {{gender.label}}
                 </mat-option>
               </mat-select>
-              <mat-icon matPrefix>wc</mat-icon>
+              <i matPrefix class="fi fi-rr-venus-mars"></i>
             </mat-form-field>
 
             <mat-form-field appearance="outline">
@@ -39,14 +43,22 @@
                   {{country.label}}
                 </mat-option>
               </mat-select>
-              <mat-icon matPrefix>public</mat-icon>
+              <i matPrefix class="fi fi-rr-earth-americas"></i>
             </mat-form-field>
 
             <button mat-raised-button color="primary" class="start-button" (click)="startMatching()" [disabled]="isSearching">
-              <mat-icon>videocam</mat-icon>
+              <i class="fi fi-rr-video-camera"></i>
               Bắt đầu ghép
             </button>
+
+            <p class="agreement-text">Bằng cách tiếp tục, bạn đồng ý với quy tắc cộng đồng.</p>
           </form>
+
+          <div class="benefits-row">
+            <span>An toàn</span>
+            <span>Nhanh</span>
+            <span>Ẩn danh tương đối</span>
+          </div>
         </mat-card-content>
       </mat-card>
     </div>
@@ -54,13 +66,37 @@
     <!-- Video Call Section -->
     <div class="video-section" *ngIf="!isIdle">
       <div class="video-container">
+        <div class="call-badges" *ngIf="isConnected">
+          <span class="badge" [class.badge-off]="isMicMuted">
+            <i [class]="isMicMuted ? 'fi fi-rr-microphone-slash' : 'fi fi-rr-microphone'"></i>
+            {{ isMicMuted ? 'Mic tắt' : 'Mic bật' }}
+          </span>
+          <span class="badge" [class.badge-off]="isCameraOff">
+            <i [class]="isCameraOff ? 'fi fi-rr-video-camera-slash' : 'fi fi-rr-video-camera'"></i>
+            {{ isCameraOff ? 'Cam tắt' : 'Cam bật' }}
+          </span>
+          <span class="badge">
+            <i class="fi fi-rr-signal-alt-2"></i>
+            {{ networkQualityLabel }}
+          </span>
+        </div>
+
         <!-- Remote Video -->
         <div class="video-box remote-video" [class.connected]="isConnected">
           <div class="video-placeholder" *ngIf="!isConnected">
             <mat-spinner diameter="60"></mat-spinner>
-            <p class="status-text">{{statusText}}</p>
+            <p class="status-text">Đang tìm người phù hợp...</p>
+            <p class="sub-status-text">Ưu tiên theo bộ lọc của bạn</p>
+            <div class="active-filter-chips">
+              <span>{{ filterForm.value.gender || 'all' }}</span>
+              <span>{{ filterForm.value.country || 'all' }}</span>
+            </div>
           </div>
           <video #remoteVideo autoplay playsinline class="video-element" *ngIf="isConnected"></video>
+          <div class="peer-label" *ngIf="isConnected">
+            <i class="fi fi-rr-user"></i>
+            {{ peerDisplayLabel }}
+          </div>
           <p class="status-text overlay-text" *ngIf="isConnected">{{statusText}}</p>
         </div>
 
@@ -69,12 +105,12 @@
           <video #localVideo autoplay muted playsinline class="video-element local-video-el"></video>
           <div class="video-placeholder local-placeholder" *ngIf="!localStream">
             <div class="avatar-small">
-              <mat-icon>person</mat-icon>
+              <i class="fi fi-rr-user"></i>
             </div>
             <p class="local-label">Bạn</p>
           </div>
           <div class="camera-off-overlay" *ngIf="isCameraOff && localStream">
-            <mat-icon>videocam_off</mat-icon>
+            <i class="fi fi-rr-video-camera-slash"></i>
           </div>
         </div>
       </div>
@@ -82,27 +118,27 @@
       <!-- Control Buttons -->
       <div class="controls">
         <button mat-fab color="warn" (click)="toggleMic()" [class.muted]="isMicMuted" [matTooltip]="isMicMuted ? 'Bật mic' : 'Tắt mic'">
-          <mat-icon>{{isMicMuted ? 'mic_off' : 'mic'}}</mat-icon>
+          <i [class]="isMicMuted ? 'fi fi-rr-microphone-slash' : 'fi fi-rr-microphone'"></i>
         </button>
 
         <button mat-fab color="primary" (click)="toggleCamera()" [class.camera-off]="isCameraOff" [matTooltip]="isCameraOff ? 'Bật camera' : 'Tắt camera'">
-          <mat-icon>{{isCameraOff ? 'videocam_off' : 'videocam'}}</mat-icon>
+          <i [class]="isCameraOff ? 'fi fi-rr-video-camera-slash' : 'fi fi-rr-video-camera'"></i>
         </button>
 
         <button mat-fab color="accent" (click)="nextMatch()" *ngIf="isConnected" matTooltip="Bỏ qua">
-          <mat-icon>skip_next</mat-icon>
+          <i class="fi fi-rr-forward"></i>
         </button>
 
         <button mat-fab color="default" (click)="openReportDialog()" *ngIf="isConnected" matTooltip="Báo cáo">
-          <mat-icon>flag</mat-icon>
+          <i class="fi fi-rr-flag"></i>
         </button>
 
         <button mat-fab color="default" (click)="blockUser()" *ngIf="isConnected" matTooltip="Chặn">
-          <mat-icon>block</mat-icon>
+          <i class="fi fi-rr-ban"></i>
         </button>
 
         <button mat-fab color="warn" (click)="stopMatching()" matTooltip="Kết thúc">
-          <mat-icon>call_end</mat-icon>
+          <i class="fi fi-rr-phone-call"></i>
         </button>
       </div>
     </div>

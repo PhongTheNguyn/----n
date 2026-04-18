@@ -43,6 +43,7 @@ const STATUS_LABELS: Record<string, string> = {
   ],
   template: `
     <h1>Báo cáo</h1>
+    <p class="sub">Quản lý báo cáo và xử lý vi phạm</p>
     <mat-form-field appearance="outline" class="filter">
       <mat-label>Trạng thái</mat-label>
       <mat-select [(value)]="statusFilter" (selectionChange)="load()">
@@ -55,7 +56,7 @@ const STATUS_LABELS: Record<string, string> = {
       </mat-select>
     </mat-form-field>
 
-    <table mat-table [dataSource]="dataSource" class="reports-table">
+    <table mat-table [dataSource]="dataSource" class="reports-table mat-elevation-z0">
       <ng-container matColumnDef="reporter">
         <th mat-header-cell *matHeaderCellDef>Người báo cáo</th>
         <td mat-cell *matCellDef="let r">{{ r.reporter?.displayName || '-' }}</td>
@@ -81,20 +82,20 @@ const STATUS_LABELS: Record<string, string> = {
         <td mat-cell *matCellDef="let r">
           <ng-container *ngIf="r.status === 'pending'">
             <button mat-icon-button (click)="action(r.id, 'dismiss')" matTooltip="Bỏ qua">
-              <mat-icon>clear</mat-icon>
+              <i class="fi fi-rr-cross-small"></i>
             </button>
             <button mat-icon-button (click)="action(r.id, 'warn')" matTooltip="Cảnh cáo">
-              <mat-icon>warning</mat-icon>
+              <i class="fi fi-rr-triangle-warning"></i>
             </button>
             <button mat-icon-button (click)="action(r.id, 'ban_temp')" matTooltip="Khóa tạm">
-              <mat-icon>lock</mat-icon>
+              <i class="fi fi-rr-lock"></i>
             </button>
             <button mat-icon-button (click)="action(r.id, 'ban_permanent')" matTooltip="Khóa vĩnh viễn">
-              <mat-icon>block</mat-icon>
+              <i class="fi fi-rr-ban"></i>
             </button>
           </ng-container>
           <button *ngIf="r.status === 'pending'" mat-icon-button (click)="action(r.id, 'processed')" matTooltip="Đánh dấu đã xử lý">
-            <mat-icon>check_circle</mat-icon>
+            <i class="fi fi-rr-check-circle"></i>
           </button>
         </td>
       </ng-container>
@@ -114,11 +115,19 @@ const STATUS_LABELS: Record<string, string> = {
   `,
   styles: [
     `
-      h1 { margin-bottom: 16px; }
+      h1 { margin: 0 0 4px; color: #f9fafb; }
+      .sub { margin: 0 0 16px; color: #cbd5e1; }
       .filter { margin-bottom: 16px; width: 200px; }
-      .reports-table { width: 100%; }
-      th, td { padding: 8px 16px; }
+      .reports-table {
+        width: 100%;
+        background: rgba(247, 248, 252, 0.96);
+        border-radius: 18px;
+        overflow: hidden;
+      }
+      th, td { padding: 10px 16px; }
+      th { color: #334155; font-weight: 700; }
       mat-paginator { margin-top: 16px; }
+      .fi { font-size: 20px; line-height: 1; }
     `
   ]
 })

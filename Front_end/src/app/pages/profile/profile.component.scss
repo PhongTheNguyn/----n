@@ -3,55 +3,64 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 24px;
+  background: linear-gradient(135deg, #5b67f1 0%, #7a5af8 100%);
 }
 
 .profile-card {
-  background: white;
-  border-radius: 20px;
-  padding: 40px;
+  background: rgba(247, 248, 252, 0.94);
+  border-radius: 24px;
+  padding: 32px;
   width: 100%;
-  max-width: 600px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 680px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.16);
   max-height: 90vh;
   overflow-y: auto;
+  backdrop-filter: blur(12px);
 }
 
 .profile-header {
   display: flex;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 24px;
   position: relative;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 16px;
 
   .back-button {
-    position: absolute;
-    left: -10px;
+    margin-right: 8px;
   }
 
-  .logout-button {
-    position: absolute;
-    right: -10px;
+  .header-save-btn {
+    margin-left: auto;
+    height: 40px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #5b67f1 0%, #7a5af8 100%) !important;
   }
 
   h1 {
-    flex: 1;
-    text-align: center;
     font-size: 28px;
     font-weight: 700;
-    color: #333;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: #111827;
   }
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #374151;
+  margin: 4px 0 6px;
 }
 
 .avatar-section {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 8px;
+  padding: 18px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #e5e7eb;
 }
 
 .avatar-container {
@@ -80,15 +89,16 @@
 }
 
 .avatar-hint {
-  color: #666;
-  font-size: 12px;
+  color: #4b5563;
+  font-size: 13px;
+  font-weight: 600;
   margin: 0;
 }
 
 .profile-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .form-row {
@@ -107,12 +117,13 @@
 
   .save-button {
     flex: 1;
-    height: 50px;
+    height: 52px;
     font-size: 16px;
     font-weight: 600;
-    border-radius: 10px;
+    border-radius: 16px;
     position: relative;
     transition: transform 0.2s, box-shadow 0.2s;
+    background: linear-gradient(135deg, #5b67f1 0%, #7a5af8 100%) !important;
 
     &:hover:not(:disabled) {
       transform: translateY(-2px);
@@ -182,7 +193,7 @@
 
 @media (max-width: 600px) {
   .profile-card {
-    padding: 30px 20px;
+    padding: 20px 16px 100px;
   }
 
   .form-row {
@@ -197,5 +208,18 @@
   .avatar-container {
     width: 100px;
     height: 100px;
+  }
+
+  .form-actions {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid #e5e7eb;
+    z-index: 50;
   }
 }

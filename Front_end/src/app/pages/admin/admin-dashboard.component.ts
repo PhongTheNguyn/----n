@@ -10,11 +10,12 @@ import { CommonModule } from '@angular/common';
   imports: [CommonModule, MatCardModule, MatProgressSpinnerModule],
   template: `
     <h1>Tổng quan</h1>
+    <p class="sub">Số liệu hệ thống theo thời gian thực</p>
     <div *ngIf="loading" class="loading">
       <mat-spinner diameter="48"></mat-spinner>
     </div>
     <div *ngIf="!loading && stats" class="stats-grid">
-      <mat-card>
+      <mat-card class="stat-card">
         <mat-card-header>
           <mat-card-title>Người dùng</mat-card-title>
         </mat-card-header>
@@ -22,7 +23,7 @@ import { CommonModule } from '@angular/common';
           <span class="stat-value">{{ stats.totalUsers }}</span>
         </mat-card-content>
       </mat-card>
-      <mat-card>
+      <mat-card class="stat-card">
         <mat-card-header>
           <mat-card-title>Báo cáo hôm nay</mat-card-title>
         </mat-card-header>
@@ -30,7 +31,7 @@ import { CommonModule } from '@angular/common';
           <span class="stat-value">{{ stats.reportsToday }}</span>
         </mat-card-content>
       </mat-card>
-      <mat-card>
+      <mat-card class="stat-card">
         <mat-card-header>
           <mat-card-title>Tổng báo cáo</mat-card-title>
         </mat-card-header>
@@ -38,7 +39,7 @@ import { CommonModule } from '@angular/common';
           <span class="stat-value">{{ stats.totalReports }}</span>
         </mat-card-content>
       </mat-card>
-      <mat-card>
+      <mat-card class="stat-card">
         <mat-card-header>
           <mat-card-title>Chờ xử lý</mat-card-title>
         </mat-card-header>
@@ -46,7 +47,7 @@ import { CommonModule } from '@angular/common';
           <span class="stat-value highlight">{{ stats.pendingReports }}</span>
         </mat-card-content>
       </mat-card>
-      <mat-card>
+      <mat-card class="stat-card">
         <mat-card-header>
           <mat-card-title>Phiên gọi</mat-card-title>
         </mat-card-header>
@@ -58,15 +59,21 @@ import { CommonModule } from '@angular/common';
   `,
   styles: [
     `
-      h1 { margin-bottom: 24px; }
+      h1 { margin: 0 0 4px; color: #f9fafb; }
+      .sub { margin: 0 0 20px; color: #cbd5e1; }
       .loading { padding: 48px; display: flex; justify-content: center; }
       .stats-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
         gap: 16px;
       }
-      .stat-value { font-size: 2rem; font-weight: bold; }
-      .stat-value.highlight { color: #f44336; }
+      .stat-card {
+        background: rgba(247, 248, 252, 0.96);
+        border-radius: 20px;
+        box-shadow: 0 14px 32px rgba(0,0,0,0.16);
+      }
+      .stat-value { font-size: 2rem; font-weight: 700; color: #111827; }
+      .stat-value.highlight { color: #ef4444; }
       mat-card-content { padding-top: 8px; }
     `
   ]

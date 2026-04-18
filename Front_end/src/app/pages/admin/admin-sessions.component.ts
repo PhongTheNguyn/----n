@@ -10,7 +10,8 @@ import { CommonModule } from '@angular/common';
   imports: [CommonModule, MatTableModule, MatPaginatorModule],
   template: `
     <h1>Phiên gọi</h1>
-    <table mat-table [dataSource]="dataSource" class="sessions-table">
+    <p class="sub">Theo dõi các phiên kết nối trong hệ thống</p>
+    <table mat-table [dataSource]="dataSource" class="sessions-table mat-elevation-z0">
       <ng-container matColumnDef="userA">
         <th mat-header-cell *matHeaderCellDef>User A</th>
         <td mat-cell *matCellDef="let s">{{ s.user_a_id }}</td>
@@ -47,9 +48,16 @@ import { CommonModule } from '@angular/common';
   `,
   styles: [
     `
-      h1 { margin-bottom: 16px; }
-      .sessions-table { width: 100%; }
-      th, td { padding: 8px 16px; }
+      h1 { margin: 0 0 4px; color: #f9fafb; }
+      .sub { margin: 0 0 16px; color: #cbd5e1; }
+      .sessions-table {
+        width: 100%;
+        background: rgba(247, 248, 252, 0.96);
+        border-radius: 18px;
+        overflow: hidden;
+      }
+      th, td { padding: 10px 16px; }
+      th { color: #334155; font-weight: 700; }
       mat-paginator { margin-top: 16px; }
     `
   ]

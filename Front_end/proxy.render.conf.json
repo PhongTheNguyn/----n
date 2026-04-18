@@ -1,0 +1,12 @@
+{
+  "/api": {
+    "target": "https://n-jgmm.onrender.com",
+    "secure": true,
+    "changeOrigin": true
+  },
+  "/uploads": {
+    "target": "https://n-jgmm.onrender.com",
+    "secure": true,
+    "changeOrigin": true
+  }
+}

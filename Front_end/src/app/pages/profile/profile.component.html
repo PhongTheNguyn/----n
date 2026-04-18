@@ -2,30 +2,31 @@
   <div class="profile-card">
     <div class="profile-header">
       <button mat-icon-button (click)="goToHome()" class="back-button">
-        <mat-icon>arrow_back</mat-icon>
+        <i class="fi fi-rr-arrow-left"></i>
       </button>
       <h1>Chỉnh sửa hồ sơ</h1>
-      <button mat-icon-button (click)="logout()" class="logout-button" matTooltip="Đăng xuất">
-        <mat-icon>logout</mat-icon>
+      <button mat-raised-button color="primary" class="header-save-btn" type="submit" form="profile-form" [disabled]="isLoading || profileForm.invalid">
+        Lưu
       </button>
     </div>
 
-    <form [formGroup]="profileForm" (ngSubmit)="onSubmit()" class="profile-form">
+    <form id="profile-form" [formGroup]="profileForm" (ngSubmit)="onSubmit()" class="profile-form">
       <div class="avatar-section">
+        <h3 class="section-title">Ảnh đại diện</h3>
         <div class="avatar-container">
           <img [src]="avatarPreview || 'assets/default-avatar.svg'" alt="Avatar" class="avatar-image" (error)="onImageError($event)">
           <button mat-fab color="primary" class="avatar-upload-btn" (click)="triggerFileInput()" type="button">
-            <mat-icon>camera_alt</mat-icon>
+            <i class="fi fi-rr-camera"></i>
           </button>
         </div>
         <input type="file" id="avatar-input" accept="image/*" (change)="onFileSelected($event)" style="display: none;">
-        <p class="avatar-hint">Nhấn để thay đổi ảnh đại diện</p>
+        <p class="avatar-hint">Thay đổi ảnh đại diện</p>
       </div>
 
+      <h3 class="section-title">Thông tin cá nhân</h3>
       <mat-form-field appearance="outline">
         <mat-label>Tên hiển thị</mat-label>
         <input matInput formControlName="displayName" placeholder="Nhập tên hiển thị">
-        <mat-icon matPrefix>badge</mat-icon>
         <mat-error *ngIf="profileForm.get('displayName')?.hasError('required')">
           Tên hiển thị là bắt buộc
         </mat-error>
@@ -42,13 +43,11 @@
               {{gender.label}}
             </mat-option>
           </mat-select>
-          <mat-icon matPrefix>wc</mat-icon>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="half-width">
           <mat-label>Tuổi</mat-label>
           <input matInput type="number" formControlName="age" placeholder="18+">
-          <mat-icon matPrefix>cake</mat-icon>
           <mat-error *ngIf="profileForm.get('age')?.hasError('min') || profileForm.get('age')?.hasError('max')">
             Tuổi phải từ 18 đến 100
           </mat-error>
@@ -62,13 +61,11 @@
             {{country.label}}
           </mat-option>
         </mat-select>
-        <mat-icon matPrefix>public</mat-icon>
       </mat-form-field>
 
       <mat-form-field appearance="outline">
         <mat-label>Mô tả ngắn</mat-label>
         <textarea matInput formControlName="bio" rows="4" placeholder="Giới thiệu về bản thân..."></textarea>
-        <mat-icon matPrefix>description</mat-icon>
         <mat-hint>{{profileForm.get('bio')?.value?.length || 0}}/200</mat-hint>
         <mat-error *ngIf="profileForm.get('bio')?.hasError('maxlength')">
           Mô tả không được vượt quá 200 ký tự
@@ -80,8 +77,8 @@
           <mat-spinner *ngIf="isLoading" diameter="20" class="button-spinner"></mat-spinner>
           <span *ngIf="!isLoading">Lưu thay đổi</span>
         </button>
-        <button mat-button type="button" (click)="goToHome()" [disabled]="isLoading">
-          Hủy
+        <button mat-button type="button" (click)="logout()" [disabled]="isLoading">
+          Đăng xuất
         </button>
       </div>
     </form>

@@ -1,4 +1,21 @@
 /* Global Styles */
+:root {
+  --primary: #5b67f1;
+  --secondary: #7a5af8;
+  --bg-dark: #0f1221;
+  --surface-dark: #171a2e;
+  --surface-light: #f7f8fc;
+  --text-dark: #111827;
+  --text-light: #f9fafb;
+  --danger: #ef4444;
+  --success: #22c55e;
+  --radius-card: 24px;
+  --radius-button: 16px;
+  --radius-input: 14px;
+  --radius-video: 24px;
+  --shadow-soft: 0 20px 50px rgba(0, 0, 0, 0.16);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -14,13 +31,40 @@ html, body {
 
 body {
   margin: 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #5b67f1 0%, #7a5af8 100%);
   min-height: 100vh;
+  color: var(--text-light);
+}
+
+.fi {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.mat-mdc-icon-button .fi,
+.mat-mdc-fab .fi {
+  font-size: 20px;
+}
+
+.mat-mdc-form-field-icon-prefix .fi,
+.mat-mdc-form-field-icon-suffix .fi {
+  font-size: 18px;
 }
 
 /* Material Design Overrides */
 .mat-mdc-form-field {
   width: 100%;
+}
+
+.mat-mdc-raised-button,
+.mat-mdc-unelevated-button {
+  border-radius: var(--radius-button) !important;
+}
+
+.mat-mdc-card {
+  border-radius: var(--radius-card) !important;
 }
 
 /* Animations */
