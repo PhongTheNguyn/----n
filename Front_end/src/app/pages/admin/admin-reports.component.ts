@@ -81,20 +81,20 @@ const STATUS_LABELS: Record<string, string> = {
         <td mat-cell *matCellDef="let r">
           <ng-container *ngIf="r.status === 'pending'">
             <button mat-icon-button (click)="action(r.id, 'dismiss')" matTooltip="Bỏ qua">
-              <mat-icon>clear</mat-icon>
+              <i class="fas fa-times"></i>
             </button>
             <button mat-icon-button (click)="action(r.id, 'warn')" matTooltip="Cảnh cáo">
-              <mat-icon>warning</mat-icon>
+              <i class="fas fa-exclamation-triangle"></i>
             </button>
             <button mat-icon-button (click)="action(r.id, 'ban_temp')" matTooltip="Khóa tạm">
-              <mat-icon>lock</mat-icon>
+              <i class="fas fa-lock"></i>
             </button>
             <button mat-icon-button (click)="action(r.id, 'ban_permanent')" matTooltip="Khóa vĩnh viễn">
-              <mat-icon>block</mat-icon>
+              <i class="fas fa-ban"></i>
             </button>
           </ng-container>
           <button *ngIf="r.status === 'pending'" mat-icon-button (click)="action(r.id, 'processed')" matTooltip="Đánh dấu đã xử lý">
-            <mat-icon>check_circle</mat-icon>
+            <i class="fas fa-check-circle"></i>
           </button>
         </td>
       </ng-container>
