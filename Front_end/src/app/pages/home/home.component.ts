@@ -65,6 +65,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   private bubbleDragMoved = false;
   private peerIntroTimeout: ReturnType<typeof setTimeout> | null = null;
   private cameraStateSyncInterval: ReturnType<typeof setInterval> | null = null;
+  private localVideoTrack: MediaStreamTrack | null = null;
   private originalBodyOverflow = '';
   private originalHtmlOverflow = '';
   private subs: Subscription[] = [];
@@ -79,6 +80,9 @@ export class HomeComponent implements OnInit, OnDestroy {
   private peerMicSource: MediaStreamAudioSourceNode | null = null;
   private peerMicData: Uint8Array | null = null;
   private peerMicAnimFrame: number | null = null;
+  private readonly onVisibilityOrPageHidden = () => {
+    this.sendCurrentCameraState();
+  };
   private config: RTCConfiguration = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
   };
@@ -121,6 +125,15 @@ export class HomeComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.lockPageScroll();
     this.updateViewportState();
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.onVisibilityOrPageHidden);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', this.onVisibilityOrPageHidden);
+      window.addEventListener('pageshow', this.onVisibilityOrPageHidden);
+      window.addEventListener('focus', this.onVisibilityOrPageHidden);
+      window.addEventListener('blur', this.onVisibilityOrPageHidden);
+    }
     this.subs.push(
       this.matching.onMatched().subscribe(({ roomId, peerUserId, peerDisplayName, peerAvatarUrl, isInitiator }) => {
         this.roomId = roomId;
@@ -156,6 +169,16 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.onVisibilityOrPageHidden);
+    }
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pagehide', this.onVisibilityOrPageHidden);
+      window.removeEventListener('pageshow', this.onVisibilityOrPageHidden);
+      window.removeEventListener('focus', this.onVisibilityOrPageHidden);
+      window.removeEventListener('blur', this.onVisibilityOrPageHidden);
+    }
+    this.detachLocalVideoTrackListeners();
     this.terminateSession(true);
     this.unlockPageScroll();
     this.cleanup();
@@ -226,9 +249,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   toggleCamera() {
     this.isCameraOff = !this.isCameraOff;
     this.localStream?.getVideoTracks().forEach((t) => (t.enabled = !this.isCameraOff));
-    if (this.roomId) {
-      this.matching.sendCameraState(this.roomId, this.isCameraOff);
-    }
+    this.sendCurrentCameraState();
   }
 
   sendChatMessage() {
@@ -406,6 +427,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   private attachLocalStream() {
+    this.attachLocalVideoTrackListeners();
     setTimeout(() => {
       const el = this.localVideoRef?.nativeElement;
       if (el && this.localStream) {
@@ -545,9 +567,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       await this.peerConnection.setLocalDescription(offer);
       this.matching.sendOffer(this.roomId, offer);
     }
-    if (this.roomId) {
-      this.matching.sendCameraState(this.roomId, this.isCameraOff);
-    }
+    this.sendCurrentCameraState();
   }
 
   private handlePeerLeft(message?: string) {
@@ -605,6 +625,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   private cleanup() {
     this.resetPeerState();
     this.stopMicVisualizer();
+    this.detachLocalVideoTrackListeners();
     this.localStream?.getTracks().forEach((t) => t.stop());
     this.localStream = null;
     const lv = this.localVideoRef?.nativeElement;
@@ -687,9 +708,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.stopCameraStateSync();
     if (typeof window === 'undefined') return;
     this.cameraStateSyncInterval = setInterval(() => {
-      if (this.roomId && this.isConnected) {
-        this.matching.sendCameraState(this.roomId, this.isCameraOff);
-      }
+      this.sendCurrentCameraState();
     }, 2000);
   }
 
@@ -698,6 +717,37 @@ export class HomeComponent implements OnInit, OnDestroy {
       clearInterval(this.cameraStateSyncInterval);
       this.cameraStateSyncInterval = null;
     }
+  }
+
+  private attachLocalVideoTrackListeners() {
+    this.detachLocalVideoTrackListeners();
+    const track = this.localStream?.getVideoTracks?.()[0] || null;
+    if (!track) return;
+    this.localVideoTrack = track;
+    track.addEventListener('mute', this.onVisibilityOrPageHidden);
+    track.addEventListener('unmute', this.onVisibilityOrPageHidden);
+    track.addEventListener('ended', this.onVisibilityOrPageHidden);
+  }
+
+  private detachLocalVideoTrackListeners() {
+    if (!this.localVideoTrack) return;
+    this.localVideoTrack.removeEventListener('mute', this.onVisibilityOrPageHidden);
+    this.localVideoTrack.removeEventListener('unmute', this.onVisibilityOrPageHidden);
+    this.localVideoTrack.removeEventListener('ended', this.onVisibilityOrPageHidden);
+    this.localVideoTrack = null;
+  }
+
+  private isLocalCameraUnavailable(): boolean {
+    if (this.isCameraOff) return true;
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return true;
+    const track = this.localStream?.getVideoTracks?.()[0];
+    if (!track) return true;
+    return !track.enabled || track.readyState !== 'live' || track.muted;
+  }
+
+  private sendCurrentCameraState() {
+    if (!this.roomId || !this.isConnected) return;
+    this.matching.sendCameraState(this.roomId, this.isLocalCameraUnavailable());
   }
 
   private showPeerMatchedIntro() {
