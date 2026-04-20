@@ -49,6 +49,9 @@ const PORT = process.env.PORT || 3000;
 
 const queue = [];
 const rooms = new Map(); // roomId -> { peerIds: [id1, id2], userA, userB, sessionId? }
+const normalizeFilterValue = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
+const normalizeGenderFilter = (v) => (v === 'male' || v === 'female' ? v : 'all');
+const normalizeCountryFilter = (v) => (!v || v === 'all' ? 'all' : v);
 
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
@@ -65,14 +68,34 @@ io.use((socket, next) => {
 
 io.on('connection', (socket) => {
   socket.on('join-queue', async (filters) => {
-    const { gender, country } = filters || {};
-    const me = { socketId: socket.id, userId: socket.userId, gender: gender || 'all', country: country || 'all' };
+    const requestedGender = normalizeFilterValue(filters?.gender);
+    const requestedCountry = normalizeFilterValue(filters?.country);
 
-    const u = await prisma.user.findUnique({ where: { id: socket.userId }, select: { isBanned: true, bannedUntil: true } }).catch(() => null);
-    if (u?.isBanned && (u.bannedUntil == null || u.bannedUntil > new Date())) {
+    const myProfile = await prisma.user.findUnique({
+      where: { id: socket.userId },
+      select: {
+        isBanned: true,
+        bannedUntil: true,
+        gender: true,
+        country: true,
+        displayName: true,
+        avatarUrl: true
+      }
+    }).catch(() => null);
+    if (myProfile?.isBanned && (myProfile.bannedUntil == null || myProfile.bannedUntil > new Date())) {
       socket.emit('searching');
       return;
     }
+    const me = {
+      socketId: socket.id,
+      userId: socket.userId,
+      prefGender: normalizeGenderFilter(requestedGender),
+      prefCountry: normalizeCountryFilter(requestedCountry),
+      userGender: normalizeFilterValue(myProfile?.gender),
+      userCountry: normalizeFilterValue(myProfile?.country),
+      displayName: myProfile?.displayName || null,
+      avatarUrl: myProfile?.avatarUrl || null
+    };
 
     const blockedByMe = await prisma.blocked_users
       .findMany({ where: { blocker_id: socket.userId }, select: { blocked_id: true } })
@@ -87,9 +110,17 @@ io.on('connection', (socket) => {
         .findFirst({ where: { blocker_id: q.userId, blocked_id: socket.userId } })
         .catch(() => null);
       if (blockedByPeer) continue;
-      const gMatch = q.gender === 'all' || me.gender === 'all' || q.gender === me.gender;
-      const cMatch = q.country === 'all' || me.country === 'all' || q.country === me.country;
-      if (gMatch && cMatch) {
+      const qPrefGender = normalizeGenderFilter(normalizeFilterValue(q.prefGender || q.gender));
+      const qPrefCountry = normalizeCountryFilter(normalizeFilterValue(q.prefCountry || q.country));
+      const qUserGender = normalizeFilterValue(q.userGender);
+      const qUserCountry = normalizeFilterValue(q.userCountry);
+
+      const iAcceptPeer = (me.prefGender === 'all' || me.prefGender === qUserGender)
+        && (me.prefCountry === 'all' || me.prefCountry === qUserCountry);
+      const peerAcceptMe = (qPrefGender === 'all' || qPrefGender === me.userGender)
+        && (qPrefCountry === 'all' || qPrefCountry === me.userCountry);
+
+      if (iAcceptPeer && peerAcceptMe) {
         match = q;
         break;
       }
@@ -109,11 +140,7 @@ io.on('connection', (socket) => {
       socket.join(roomId);
       io.sockets.sockets.get(match.socketId)?.join(roomId);
 
-      const [meProfile, peerProfile] = await Promise.all([
-        prisma.user.findUnique({
-          where: { id: socket.userId },
-          select: { displayName: true, avatarUrl: true }
-        }).catch(() => null),
+      const [peerProfile] = await Promise.all([
         prisma.user.findUnique({
           where: { id: match.userId },
           select: { displayName: true, avatarUrl: true }
@@ -146,8 +173,8 @@ io.on('connection', (socket) => {
         roomId,
         peerId: socket.id,
         peerUserId: socket.userId,
-        peerDisplayName: meProfile?.displayName || null,
-        peerAvatarUrl: meProfile?.avatarUrl || null,
+        peerDisplayName: me.displayName,
+        peerAvatarUrl: me.avatarUrl,
         isInitiator: false
       });
     } else {

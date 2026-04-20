@@ -1,5 +1,6 @@
 <div class="profile-container fade-in">
   <div class="profile-card">
+    <div class="profile-scroll">
     <div class="profile-header">
       <button mat-icon-button (click)="goToHome()" class="back-button">
         <i class="fi fi-rr-arrow-left"></i>
@@ -106,6 +107,7 @@
         <span class="blocked-name">{{ b.displayName || 'Người dùng' }}</span>
         <button mat-stroked-button color="warn" (click)="unblockUser(b.blockedId)">Bỏ chặn</button>
       </div>
+    </div>
     </div>
   </div>
 </div>

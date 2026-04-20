@@ -10,13 +10,19 @@
 .profile-card {
   background: rgba(247, 248, 252, 0.94);
   border-radius: 24px;
-  padding: 32px;
   width: 100%;
   max-width: 680px;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.16);
   max-height: 90vh;
-  overflow-y: auto;
+  overflow: hidden;
   backdrop-filter: blur(12px);
+}
+
+.profile-scroll {
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 32px;
+  scrollbar-gutter: stable;
 }
 
 .profile-header {
@@ -192,7 +198,7 @@
 }
 
 @media (max-width: 600px) {
-  .profile-card {
+  .profile-scroll {
     padding: 20px 16px 100px;
   }
 

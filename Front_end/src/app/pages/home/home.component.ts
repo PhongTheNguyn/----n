@@ -90,8 +90,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   genders = [
     { value: 'all', label: 'Tất cả' },
     { value: 'male', label: 'Nam' },
-    { value: 'female', label: 'Nữ' },
-    { value: 'other', label: 'Khác' }
+    { value: 'female', label: 'Nữ' }
   ];
 
   countries = [
