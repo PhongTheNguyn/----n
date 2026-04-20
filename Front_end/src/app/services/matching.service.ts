@@ -15,11 +15,20 @@ export interface MatchFilters {
 export class MatchingService {
   private socket: Socket | null = null;
 
-  private matched$ = new Subject<{ roomId: string; peerId: string; peerUserId: string; isInitiator: boolean }>();
+  private matched$ = new Subject<{
+    roomId: string;
+    peerId: string;
+    peerUserId: string;
+    peerDisplayName?: string | null;
+    peerAvatarUrl?: string | null;
+    isInitiator: boolean;
+  }>();
   private searching$ = new Subject<void>();
   private peerSkipped$ = new Subject<void>();
   private peerEnded$ = new Subject<void>();
   private peerDisconnected$ = new Subject<void>();
+  private peerCameraState$ = new Subject<{ isCameraOff: boolean; from: string }>();
+  private peerChatMessage$ = new Subject<{ text: string; from: string; sentAt: number }>();
 
   constructor(private auth: AuthService) {}
 
@@ -31,7 +40,14 @@ export class MatchingService {
       auth: { token }
     });
 
-    this.socket.on('matched', (data: { roomId: string; peerId: string; peerUserId?: string; isInitiator: boolean }) => {
+    this.socket.on('matched', (data: {
+      roomId: string;
+      peerId: string;
+      peerUserId?: string;
+      peerDisplayName?: string | null;
+      peerAvatarUrl?: string | null;
+      isInitiator: boolean;
+    }) => {
       this.matched$.next({ ...data, peerUserId: data.peerUserId || '' });
     });
 
@@ -49,6 +65,14 @@ export class MatchingService {
 
     this.socket.on('peer-disconnected', () => {
       this.peerDisconnected$.next();
+    });
+
+    this.socket.on('peer-camera-state', (data: { isCameraOff: boolean; from: string }) => {
+      this.peerCameraState$.next(data);
+    });
+
+    this.socket.on('peer-chat-message', (data: { text: string; from: string; sentAt: number }) => {
+      this.peerChatMessage$.next(data);
     });
 
     return this.socket;
@@ -79,6 +103,14 @@ export class MatchingService {
     this.socket?.emit('ice-candidate', { roomId, candidate });
   }
 
+  sendCameraState(roomId: string, isCameraOff: boolean): void {
+    this.socket?.emit('camera-state', { roomId, isCameraOff });
+  }
+
+  sendChatMessage(roomId: string, text: string): void {
+    this.socket?.emit('chat-message', { roomId, text });
+  }
+
   skip(roomId: string): void {
     this.socket?.emit('skip', roomId);
   }
@@ -87,7 +119,14 @@ export class MatchingService {
     this.socket?.emit('end-call', roomId);
   }
 
-  onMatched(): Observable<{ roomId: string; peerId: string; peerUserId: string; isInitiator: boolean }> {
+  onMatched(): Observable<{
+    roomId: string;
+    peerId: string;
+    peerUserId: string;
+    peerDisplayName?: string | null;
+    peerAvatarUrl?: string | null;
+    isInitiator: boolean;
+  }> {
     return this.matched$.asObservable();
   }
 
@@ -105,6 +144,14 @@ export class MatchingService {
 
   onPeerDisconnected(): Observable<void> {
     return this.peerDisconnected$.asObservable();
+  }
+
+  onPeerCameraState(): Observable<{ isCameraOff: boolean; from: string }> {
+    return this.peerCameraState$.asObservable();
+  }
+
+  onPeerChatMessage(): Observable<{ text: string; from: string; sentAt: number }> {
+    return this.peerChatMessage$.asObservable();
   }
 
   onOffer(): Observable<{ offer: RTCSessionDescriptionInit; from: string }> {

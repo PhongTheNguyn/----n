@@ -109,6 +109,17 @@ io.on('connection', (socket) => {
       socket.join(roomId);
       io.sockets.sockets.get(match.socketId)?.join(roomId);
 
+      const [meProfile, peerProfile] = await Promise.all([
+        prisma.user.findUnique({
+          where: { id: socket.userId },
+          select: { displayName: true, avatarUrl: true }
+        }).catch(() => null),
+        prisma.user.findUnique({
+          where: { id: match.userId },
+          select: { displayName: true, avatarUrl: true }
+        }).catch(() => null)
+      ]);
+
       prisma.call_sessions
         .create({
           data: {
@@ -123,8 +134,22 @@ io.on('connection', (socket) => {
         })
         .catch((e) => console.error('create call_session:', e));
 
-      socket.emit('matched', { roomId, peerId: match.socketId, peerUserId: match.userId, isInitiator: true });
-      io.to(match.socketId).emit('matched', { roomId, peerId: socket.id, peerUserId: socket.userId, isInitiator: false });
+      socket.emit('matched', {
+        roomId,
+        peerId: match.socketId,
+        peerUserId: match.userId,
+        peerDisplayName: peerProfile?.displayName || null,
+        peerAvatarUrl: peerProfile?.avatarUrl || null,
+        isInitiator: true
+      });
+      io.to(match.socketId).emit('matched', {
+        roomId,
+        peerId: socket.id,
+        peerUserId: socket.userId,
+        peerDisplayName: meProfile?.displayName || null,
+        peerAvatarUrl: meProfile?.avatarUrl || null,
+        isInitiator: false
+      });
     } else {
       queue.push(me);
       socket.emit('searching');
@@ -147,6 +172,18 @@ io.on('connection', (socket) => {
 
   socket.on('ice-candidate', ({ roomId, candidate }) => {
     socket.to(roomId).emit('ice-candidate', { candidate, from: socket.id });
+  });
+
+  socket.on('camera-state', ({ roomId, isCameraOff }) => {
+    if (!roomId) return;
+    socket.to(roomId).emit('peer-camera-state', { isCameraOff: !!isCameraOff, from: socket.id });
+  });
+
+  socket.on('chat-message', ({ roomId, text }) => {
+    if (!roomId || typeof text !== 'string') return;
+    const clean = text.trim().slice(0, 500);
+    if (!clean) return;
+    socket.to(roomId).emit('peer-chat-message', { text: clean, from: socket.id, sentAt: Date.now() });
   });
 
   function endCall(roomId) {

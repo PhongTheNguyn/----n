@@ -37,6 +37,7 @@ import { AdminReportsComponent } from './pages/admin/admin-reports.component';
 import { AdminSessionsComponent } from './pages/admin/admin-sessions.component';
 import { AdminLogsComponent } from './pages/admin/admin-logs.component';
 import { AdminConfigComponent } from './pages/admin/admin-config.component';
+import { CountryFlagUrlPipe } from './pipes/country-flag-url.pipe';
 
 @NgModule({
   declarations: [
@@ -45,7 +46,8 @@ import { AdminConfigComponent } from './pages/admin/admin-config.component';
     RegisterComponent,
     ProfileComponent,
     HomeComponent,
-    ReportDialogComponent
+    ReportDialogComponent,
+    CountryFlagUrlPipe
   ],
   imports: [
     BrowserModule,

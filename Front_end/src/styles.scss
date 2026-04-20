@@ -113,3 +113,29 @@ body {
     display: none !important;
   }
 }
+
+/* Country select: round country flags + label */
+.mat-select-country-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mat-select-country-option .country-flag-img {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  display: block;
+}
+
+.mat-select-country-option .country-flag-globe {
+  font-size: 18px;
+  line-height: 1;
+  width: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}

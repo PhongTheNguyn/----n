@@ -85,7 +85,22 @@
         <mat-label>Quốc gia</mat-label>
         <mat-select formControlName="country">
           <mat-option *ngFor="let country of countries" [value]="country.value">
-            {{country.label}}
+            <span class="mat-select-country-option">
+              @if (country.value | countryFlagUrl; as flagUrl) {
+                <img
+                  class="country-flag-img"
+                  [src]="flagUrl"
+                  alt=""
+                  width="18"
+                  height="18"
+                  loading="lazy"
+                  decoding="async"
+                />
+              } @else {
+                <i class="fi fi-rr-globe country-flag-globe" aria-hidden="true"></i>
+              }
+              <span>{{ country.label }}</span>
+            </span>
           </mat-option>
         </mat-select>
         <mat-error *ngIf="registerForm.get('country')?.hasError('required')">

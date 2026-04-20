@@ -81,12 +81,35 @@ import { AuthService } from '../../services/auth.service';
         font-weight: 700;
         font-size: 20px;
       }
-      .toolbar-action { border-radius: 12px; }
+      .toolbar-action {
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: #fff !important;
+      }
+      .toolbar-action .fi {
+        color: #fff;
+        font-size: 16px;
+        line-height: 1;
+        display: inline-flex;
+        align-items: center;
+        transform: translateY(1px);
+      }
       .admin-container { height: calc(100vh - 64px); background: #0f1221; }
       .admin-sidenav {
         width: 250px;
         border-right: 1px solid rgba(255, 255, 255, 0.08);
         background: #171a2e;
+      }
+      .admin-sidenav a[mat-list-item] {
+        color: rgba(255, 255, 255, 0.92);
+      }
+      .admin-sidenav a[mat-list-item] [matListItemTitle] {
+        color: #fff !important;
+      }
+      .admin-sidenav a[mat-list-item] .fi {
+        color: #fff;
       }
       .admin-content { padding: 24px; }
       .active { background: rgba(91, 103, 241, 0.2); border-radius: 12px; }

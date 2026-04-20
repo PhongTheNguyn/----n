@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, HostListener } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
@@ -17,6 +17,12 @@ enum MatchingStatus {
   CONNECTED = 'connected'
 }
 
+interface ChatMessage {
+  text: string;
+  mine: boolean;
+  sentAt: number;
+}
+
 @Component({
   selector: 'app-home',
   templateUrl: './home.component.html',
@@ -25,6 +31,8 @@ enum MatchingStatus {
 export class HomeComponent implements OnInit, OnDestroy {
   @ViewChild('localVideo') localVideoRef!: ElementRef<HTMLVideoElement>;
   @ViewChild('remoteVideo') remoteVideoRef!: ElementRef<HTMLVideoElement>;
+  @ViewChild('desktopChatMessages') desktopChatMessagesRef?: ElementRef<HTMLDivElement>;
+  @ViewChild('mobileChatMessages') mobileChatMessagesRef?: ElementRef<HTMLDivElement>;
 
   filterForm: FormGroup;
   matchingStatus: MatchingStatus = MatchingStatus.IDLE;
@@ -32,11 +40,44 @@ export class HomeComponent implements OnInit, OnDestroy {
   isCameraOff = false;
   roomId: string | null = null;
   peerUserId: string | null = null;
+  peerDisplayName = '';
+  peerAvatarUrlValue = '';
   networkQualityLabel = 'Đang kết nối...';
   isInitiator = false;
   localStream: MediaStream | null = null;
   peerConnection: RTCPeerConnection | null = null;
+  readonly defaultAvatarUrl = 'assets/default-avatar.svg';
+  micBars = [0.12, 0.12, 0.12, 0.12, 0.12];
+  peerMicBars = [0.12, 0.12, 0.12, 0.12, 0.12];
+  isPeerCameraOff = false;
+  chatMessages: ChatMessage[] = [];
+  chatDraft = '';
+  unreadChatCount = 0;
+  showPeerIntro = false;
+  peerIntroName = 'Đối phương';
+  showPeerActionMenu = false;
+  isMobileView = false;
+  isChatBubbleOpen = false;
+  chatBubblePos = { x: 16, y: 180 };
+  private peerCameraOffSignaled: boolean | null = null;
+  private bubbleDragPointerId: number | null = null;
+  private bubbleDragStart = { x: 0, y: 0, bx: 16, by: 180 };
+  private bubbleDragMoved = false;
+  private peerIntroTimeout: ReturnType<typeof setTimeout> | null = null;
+  private originalBodyOverflow = '';
+  private originalHtmlOverflow = '';
   private subs: Subscription[] = [];
+  private audioContext: AudioContext | null = null;
+  private analyser: AnalyserNode | null = null;
+  private micSource: MediaStreamAudioSourceNode | null = null;
+  private micData: Uint8Array | null = null;
+  private micAnimFrame: number | null = null;
+  private remoteStream: MediaStream | null = null;
+  private peerAudioContext: AudioContext | null = null;
+  private peerAnalyser: AnalyserNode | null = null;
+  private peerMicSource: MediaStreamAudioSourceNode | null = null;
+  private peerMicData: Uint8Array | null = null;
+  private peerMicAnimFrame: number | null = null;
   private config: RTCConfiguration = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
   };
@@ -77,28 +118,49 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.lockPageScroll();
+    this.updateViewportState();
     this.subs.push(
-      this.matching.onMatched().subscribe(({ roomId, peerUserId, isInitiator }) => {
+      this.matching.onMatched().subscribe(({ roomId, peerUserId, peerDisplayName, peerAvatarUrl, isInitiator }) => {
         this.roomId = roomId;
         this.peerUserId = peerUserId || null;
+        this.peerDisplayName = (peerDisplayName || '').trim();
+        this.peerAvatarUrlValue = (peerAvatarUrl || '').trim();
         this.isInitiator = isInitiator;
         this.matchingStatus = MatchingStatus.CONNECTED;
-        this.snackBar.open('Đã tìm thấy kết nối', 'Đóng', { duration: 2200 });
+        this.showPeerMatchedIntro();
         this.setupPeerConnection();
       }),
       this.matching.onSearching().subscribe(() => {
         this.matchingStatus = MatchingStatus.SEARCHING;
         this.networkQualityLabel = 'Đang kết nối...';
       }),
-      this.matching.onPeerSkipped().subscribe(() => this.handlePeerLeft('Đối phương đã chuyển người khác')),
-      this.matching.onPeerEnded().subscribe(() => this.handlePeerLeft('Đối phương đã kết thúc cuộc gọi')),
-      this.matching.onPeerDisconnected().subscribe(() => this.handlePeerLeft('Đối phương đã thoát'))
+      this.matching.onPeerSkipped().subscribe(() => this.handlePeerLeft()),
+      this.matching.onPeerEnded().subscribe(() => this.handlePeerLeft()),
+      this.matching.onPeerDisconnected().subscribe(() => this.handlePeerLeft()),
+      this.matching.onPeerCameraState().subscribe(({ isCameraOff }) => {
+        this.peerCameraOffSignaled = isCameraOff;
+        this.isPeerCameraOff = isCameraOff;
+      }),
+      this.matching.onPeerChatMessage().subscribe(({ text, sentAt }) => {
+        this.pushChatMessage(text, false, sentAt);
+        if (this.isMobileView && !this.isChatBubbleOpen) {
+          this.unreadChatCount += 1;
+        }
+      })
     );
   }
 
   ngOnDestroy() {
+    this.terminateSession(true);
+    this.unlockPageScroll();
     this.cleanup();
     this.subs.forEach((s) => s.unsubscribe());
+  }
+
+  @HostListener('window:resize')
+  onWindowResize() {
+    this.updateViewportState();
   }
 
   async startMatching() {
@@ -121,6 +183,7 @@ export class HomeComponent implements OnInit, OnDestroy {
         }
       });
       this.attachLocalStream();
+      this.startMicVisualizer();
       this.matchingStatus = MatchingStatus.SEARCHING;
       this.matching.joinQueue(this.filterForm.value);
     } catch (err) {
@@ -159,15 +222,95 @@ export class HomeComponent implements OnInit, OnDestroy {
   toggleCamera() {
     this.isCameraOff = !this.isCameraOff;
     this.localStream?.getVideoTracks().forEach((t) => (t.enabled = !this.isCameraOff));
+    if (this.roomId) {
+      this.matching.sendCameraState(this.roomId, this.isCameraOff);
+    }
+  }
+
+  sendChatMessage() {
+    const text = this.chatDraft.trim();
+    if (!text || !this.roomId || !this.isConnected) return;
+    this.matching.sendChatMessage(this.roomId, text);
+    this.pushChatMessage(text, true, Date.now());
+    this.chatDraft = '';
+  }
+
+  onChatEnter(event: Event) {
+    event.preventDefault();
+    this.sendChatMessage();
+  }
+
+  onChatBubblePointerDown(event: PointerEvent) {
+    if (!this.isMobileView) return;
+    this.bubbleDragPointerId = event.pointerId;
+    this.bubbleDragMoved = false;
+    this.bubbleDragStart = {
+      x: event.clientX,
+      y: event.clientY,
+      bx: this.chatBubblePos.x,
+      by: this.chatBubblePos.y
+    };
+    (event.currentTarget as HTMLElement)?.setPointerCapture?.(event.pointerId);
+  }
+
+  onChatBubblePointerMove(event: PointerEvent) {
+    if (this.bubbleDragPointerId !== event.pointerId) return;
+    const dx = event.clientX - this.bubbleDragStart.x;
+    const dy = event.clientY - this.bubbleDragStart.y;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      this.bubbleDragMoved = true;
+    }
+    this.chatBubblePos = this.clampChatBubble({
+      x: this.bubbleDragStart.bx + dx,
+      y: this.bubbleDragStart.by + dy
+    });
+  }
+
+  onChatBubblePointerUp(event: PointerEvent) {
+    if (this.bubbleDragPointerId !== event.pointerId) return;
+    this.bubbleDragPointerId = null;
+    (event.currentTarget as HTMLElement)?.releasePointerCapture?.(event.pointerId);
+    if (!this.bubbleDragMoved) {
+      this.isChatBubbleOpen = !this.isChatBubbleOpen;
+      if (this.isChatBubbleOpen) {
+        this.unreadChatCount = 0;
+        this.queueScrollChatToBottom();
+      }
+    }
+  }
+
+  onChatBubblePointerCancel(event: PointerEvent) {
+    if (this.bubbleDragPointerId !== event.pointerId) return;
+    this.bubbleDragPointerId = null;
+    (event.currentTarget as HTMLElement)?.releasePointerCapture?.(event.pointerId);
+  }
+
+  closeChatBubble() {
+    this.isChatBubbleOpen = false;
+  }
+
+  get chatWindowLeft(): number {
+    if (typeof window === 'undefined') return 12;
+    const panelWidth = Math.min(320, window.innerWidth - 24);
+    const desired = this.chatBubblePos.x + 56 - panelWidth;
+    return Math.min(Math.max(12, desired), Math.max(12, window.innerWidth - panelWidth - 12));
+  }
+
+  get chatWindowTop(): number {
+    if (typeof window === 'undefined') return 80;
+    const panelHeight = Math.min(360, window.innerHeight - 110);
+    const desired = this.chatBubblePos.y - panelHeight - 12;
+    return Math.min(Math.max(70, desired), Math.max(70, window.innerHeight - panelHeight - 12));
   }
 
   goToProfile() {
+    this.terminateSession(true);
     this.router.navigate(['/profile']);
   }
 
   logout() {
+    this.terminateSession(true);
     this.cleanup();
-    this.matching.disconnect();
     this.auth.logout();
   }
 
@@ -175,7 +318,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     if (!this.peerUserId) return;
     const ref = this.dialog.open(ReportDialogComponent, {
       width: '400px',
-      data: { reportedDisplayName: 'Người lạ' }
+      data: { reportedDisplayName: 'Đối phương' }
     });
     ref.afterClosed().subscribe((result) => {
       if (!result) return;
@@ -201,6 +344,15 @@ export class HomeComponent implements OnInit, OnDestroy {
         this.snackBar.open(err.error?.error || 'Chặn thất bại', 'Đóng', { duration: 3000 });
       }
     });
+  }
+
+  togglePeerActionMenu(event?: Event) {
+    event?.stopPropagation();
+    this.showPeerActionMenu = !this.showPeerActionMenu;
+  }
+
+  closePeerActionMenu() {
+    this.showPeerActionMenu = false;
   }
 
   get statusText(): string {
@@ -231,8 +383,22 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   get peerDisplayLabel(): string {
-    if (!this.peerUserId) return 'Người lạ';
-    return `Người lạ • ${this.peerUserId.slice(0, 6)}`;
+    return '';
+  }
+
+  get localAvatarUrl(): string {
+    return this.auth.getUser()?.avatarUrl || this.defaultAvatarUrl;
+  }
+
+  get peerAvatarUrl(): string {
+    return this.peerAvatarUrlValue || this.defaultAvatarUrl;
+  }
+
+  onAvatarError(event: Event) {
+    const img = event.target as HTMLImageElement;
+    if (img && img.src !== this.defaultAvatarUrl) {
+      img.src = this.defaultAvatarUrl;
+    }
   }
 
   private attachLocalStream() {
@@ -245,6 +411,66 @@ export class HomeComponent implements OnInit, OnDestroy {
         el.srcObject = this.localStream;
       }
     }, 0);
+  }
+
+  private startMicVisualizer() {
+    this.stopMicVisualizer();
+    if (!this.localStream || typeof window === 'undefined') return;
+
+    const audioTracks = this.localStream.getAudioTracks();
+    if (!audioTracks.length) return;
+
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+
+    this.audioContext = new AudioCtx();
+    this.analyser = this.audioContext.createAnalyser();
+    this.analyser.fftSize = 512;
+    this.analyser.smoothingTimeConstant = 0.65;
+    this.micData = new Uint8Array(this.analyser.frequencyBinCount);
+    this.micSource = this.audioContext.createMediaStreamSource(this.localStream);
+    this.micSource.connect(this.analyser);
+    this.audioContext.resume().catch(() => {});
+
+    const tick = () => {
+      if (!this.analyser || !this.micData) return;
+      this.analyser.getByteFrequencyData(this.micData as any);
+
+      // Emphasize speaking frequencies (~300Hz-3kHz) for clearer movement.
+      let sum = 0;
+      let count = 0;
+      for (let i = 2; i < Math.min(this.micData.length, 48); i += 1) {
+        sum += this.micData[i];
+        count += 1;
+      }
+      const avg = count ? sum / count : 0;
+      const level = Math.min(1, avg / 42);
+      const base = this.isMicMuted ? 0.06 : 0.14;
+      const pattern = [0.55, 0.75, 1, 0.75, 0.55];
+      this.micBars = pattern.map((weight) => Math.min(1, base + level * weight));
+      this.micAnimFrame = window.requestAnimationFrame(tick);
+    };
+
+    tick();
+  }
+
+  private stopMicVisualizer() {
+    if (typeof window !== 'undefined' && this.micAnimFrame != null) {
+      window.cancelAnimationFrame(this.micAnimFrame);
+    }
+    this.micAnimFrame = null;
+    this.micBars = [0.12, 0.12, 0.12, 0.12, 0.12];
+
+    this.micSource?.disconnect();
+    this.analyser?.disconnect();
+    this.micSource = null;
+    this.analyser = null;
+    this.micData = null;
+
+    if (this.audioContext) {
+      this.audioContext.close().catch(() => {});
+      this.audioContext = null;
+    }
   }
 
   private async setupPeerConnection() {
@@ -277,7 +503,11 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.peerConnection.ontrack = (e) => {
       setTimeout(() => {
         const el = this.remoteVideoRef?.nativeElement;
-        if (el && e.streams[0]) el.srcObject = e.streams[0];
+        if (el && e.streams[0]) {
+          this.remoteStream = e.streams[0];
+          el.srcObject = this.remoteStream;
+          this.startPeerMicVisualizer();
+        }
       }, 0);
     };
 
@@ -310,12 +540,12 @@ export class HomeComponent implements OnInit, OnDestroy {
       await this.peerConnection.setLocalDescription(offer);
       this.matching.sendOffer(this.roomId, offer);
     }
+    if (this.roomId) {
+      this.matching.sendCameraState(this.roomId, this.isCameraOff);
+    }
   }
 
   private handlePeerLeft(message?: string) {
-    if (message) {
-      this.snackBar.open(message, 'Đóng', { duration: 2400 });
-    }
     this.resetPeerState();
     this.matchingStatus = MatchingStatus.SEARCHING;
     this.matching.joinQueue(this.filterForm.value);
@@ -341,8 +571,24 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   private resetPeerState() {
+    if (this.peerIntroTimeout) {
+      clearTimeout(this.peerIntroTimeout);
+      this.peerIntroTimeout = null;
+    }
+    this.showPeerIntro = false;
+    this.stopPeerMicVisualizer();
     this.peerConnection?.close();
     this.peerConnection = null;
+    this.remoteStream = null;
+    this.peerCameraOffSignaled = null;
+    this.isPeerCameraOff = false;
+    this.peerDisplayName = '';
+    this.peerAvatarUrlValue = '';
+    this.chatMessages = [];
+    this.chatDraft = '';
+    this.unreadChatCount = 0;
+    this.showPeerActionMenu = false;
+    this.isChatBubbleOpen = false;
     this.networkQualityLabel = 'Đang kết nối...';
     this.roomId = null;
     this.peerUserId = null;
@@ -352,10 +598,173 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   private cleanup() {
     this.resetPeerState();
+    this.stopMicVisualizer();
     this.localStream?.getTracks().forEach((t) => t.stop());
     this.localStream = null;
     const lv = this.localVideoRef?.nativeElement;
     if (lv) lv.srcObject = null;
+  }
+
+  private pushChatMessage(text: string, mine: boolean, sentAt: number) {
+    this.chatMessages.push({ text: text.slice(0, 500), mine, sentAt });
+    if (this.chatMessages.length > 60) {
+      this.chatMessages = this.chatMessages.slice(-60);
+    }
+    this.queueScrollChatToBottom();
+  }
+
+  private queueScrollChatToBottom() {
+    if (typeof window === 'undefined') return;
+    window.requestAnimationFrame(() => {
+      const container =
+        (this.isMobileView ? this.mobileChatMessagesRef?.nativeElement : this.desktopChatMessagesRef?.nativeElement)
+        || this.mobileChatMessagesRef?.nativeElement
+        || this.desktopChatMessagesRef?.nativeElement;
+      if (!container) return;
+      container.scrollTop = container.scrollHeight;
+    });
+  }
+
+  private updateViewportState() {
+    if (typeof window === 'undefined') return;
+    this.isMobileView = window.innerWidth <= 768;
+    this.chatBubblePos = this.clampChatBubble(this.chatBubblePos);
+    if (!this.isMobileView) {
+      this.isChatBubbleOpen = false;
+    }
+  }
+
+  private clampChatBubble(pos: { x: number; y: number }): { x: number; y: number } {
+    if (typeof window === 'undefined') return pos;
+    const bubbleSize = 56;
+    const minX = 8;
+    const minY = 72;
+    const maxX = Math.max(minX, window.innerWidth - bubbleSize - 8);
+    const maxY = Math.max(minY, window.innerHeight - bubbleSize - 8);
+    return {
+      x: Math.min(Math.max(minX, pos.x), maxX),
+      y: Math.min(Math.max(minY, pos.y), maxY)
+    };
+  }
+
+  private lockPageScroll() {
+    if (typeof document === 'undefined') return;
+    this.originalBodyOverflow = document.body.style.overflow;
+    this.originalHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+  }
+
+  private unlockPageScroll() {
+    if (typeof document === 'undefined') return;
+    document.body.style.overflow = this.originalBodyOverflow;
+    document.documentElement.style.overflow = this.originalHtmlOverflow;
+  }
+
+  /**
+   * Ensure server receives leave/end signal before leaving Home view,
+   * so the peer can be released and rematched immediately.
+   */
+  private terminateSession(disconnectSocket: boolean) {
+    if (this.roomId) {
+      this.matching.endCall(this.roomId);
+    } else if (this.isSearching) {
+      this.matching.leaveQueue();
+    }
+
+    if (disconnectSocket) {
+      this.matching.disconnect();
+    }
+  }
+
+  private showPeerMatchedIntro() {
+    if (this.peerIntroTimeout) {
+      clearTimeout(this.peerIntroTimeout);
+    }
+    this.peerIntroName = this.peerDisplayName || 'Đối phương';
+    this.showPeerIntro = true;
+    this.peerIntroTimeout = setTimeout(() => {
+      this.showPeerIntro = false;
+      this.peerIntroTimeout = null;
+    }, 1600);
+  }
+
+  private startPeerMicVisualizer() {
+    this.stopPeerMicVisualizer();
+    if (!this.remoteStream || typeof window === 'undefined') return;
+
+    const audioTracks = this.remoteStream.getAudioTracks();
+    const hasAudio = audioTracks.length > 0;
+
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+
+    this.peerAudioContext = new AudioCtx();
+    this.peerMicData = null;
+    if (hasAudio) {
+      this.peerAnalyser = this.peerAudioContext.createAnalyser();
+      this.peerAnalyser.fftSize = 512;
+      this.peerAnalyser.smoothingTimeConstant = 0.65;
+      this.peerMicData = new Uint8Array(this.peerAnalyser.frequencyBinCount);
+      this.peerMicSource = this.peerAudioContext.createMediaStreamSource(this.remoteStream);
+      this.peerMicSource.connect(this.peerAnalyser);
+      this.peerAudioContext.resume().catch(() => {});
+    }
+
+    const tick = () => {
+      const videoTrack = this.remoteStream?.getVideoTracks()?.[0];
+      const remoteVideoEl = this.remoteVideoRef?.nativeElement;
+      const hasRenderedFrame = !!remoteVideoEl &&
+        remoteVideoEl.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        remoteVideoEl.videoWidth > 0 &&
+        remoteVideoEl.videoHeight > 0;
+      const trackLooksOff = !videoTrack ||
+        videoTrack.readyState !== 'live' ||
+        videoTrack.muted ||
+        !videoTrack.enabled;
+      const inferred = trackLooksOff || !hasRenderedFrame;
+      this.isPeerCameraOff = this.peerCameraOffSignaled ?? inferred;
+
+      if (hasAudio && this.peerAnalyser && this.peerMicData) {
+        this.peerAnalyser.getByteFrequencyData(this.peerMicData as any);
+        let sum = 0;
+        let count = 0;
+        for (let i = 2; i < Math.min(this.peerMicData.length, 48); i += 1) {
+          sum += this.peerMicData[i];
+          count += 1;
+        }
+        const avg = count ? sum / count : 0;
+        const level = Math.min(1, avg / 42);
+        const pattern = [0.55, 0.75, 1, 0.75, 0.55];
+        const base = 0.12;
+        this.peerMicBars = pattern.map((weight) => Math.min(1, base + level * weight));
+      } else {
+        this.peerMicBars = [0.12, 0.12, 0.12, 0.12, 0.12];
+      }
+
+      this.peerMicAnimFrame = window.requestAnimationFrame(tick);
+    };
+
+    tick();
+  }
+
+  private stopPeerMicVisualizer() {
+    if (typeof window !== 'undefined' && this.peerMicAnimFrame != null) {
+      window.cancelAnimationFrame(this.peerMicAnimFrame);
+    }
+    this.peerMicAnimFrame = null;
+    this.peerMicBars = [0.12, 0.12, 0.12, 0.12, 0.12];
+
+    this.peerMicSource?.disconnect();
+    this.peerAnalyser?.disconnect();
+    this.peerMicSource = null;
+    this.peerAnalyser = null;
+    this.peerMicData = null;
+
+    if (this.peerAudioContext) {
+      this.peerAudioContext.close().catch(() => {});
+      this.peerAudioContext = null;
+    }
   }
 
   
