@@ -64,6 +64,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   private bubbleDragStart = { x: 0, y: 0, bx: 16, by: 180 };
   private bubbleDragMoved = false;
   private peerIntroTimeout: ReturnType<typeof setTimeout> | null = null;
+  private cameraStateSyncInterval: ReturnType<typeof setInterval> | null = null;
   private originalBodyOverflow = '';
   private originalHtmlOverflow = '';
   private subs: Subscription[] = [];
@@ -124,12 +125,15 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.matching.onMatched().subscribe(({ roomId, peerUserId, peerDisplayName, peerAvatarUrl, isInitiator }) => {
         this.roomId = roomId;
         this.peerUserId = peerUserId || null;
-        this.peerDisplayName = (peerDisplayName || '').trim();
+        this.peerDisplayName = (peerDisplayName || '').trim() || (this.peerUserId ? this.peerUserId.slice(0, 6) : '');
         this.peerAvatarUrlValue = (peerAvatarUrl || '').trim();
         this.isInitiator = isInitiator;
         this.matchingStatus = MatchingStatus.CONNECTED;
+        // Show avatar overlay immediately until remote video really arrives.
+        this.isPeerCameraOff = true;
         this.showPeerMatchedIntro();
         this.setupPeerConnection();
+        this.startCameraStateSync();
       }),
       this.matching.onSearching().subscribe(() => {
         this.matchingStatus = MatchingStatus.SEARCHING;
@@ -506,6 +510,7 @@ export class HomeComponent implements OnInit, OnDestroy {
         if (el && e.streams[0]) {
           this.remoteStream = e.streams[0];
           el.srcObject = this.remoteStream;
+          this.isPeerCameraOff = false;
           this.startPeerMicVisualizer();
         }
       }, 0);
@@ -576,6 +581,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.peerIntroTimeout = null;
     }
     this.showPeerIntro = false;
+    this.stopCameraStateSync();
     this.stopPeerMicVisualizer();
     this.peerConnection?.close();
     this.peerConnection = null;
@@ -674,6 +680,23 @@ export class HomeComponent implements OnInit, OnDestroy {
 
     if (disconnectSocket) {
       this.matching.disconnect();
+    }
+  }
+
+  private startCameraStateSync() {
+    this.stopCameraStateSync();
+    if (typeof window === 'undefined') return;
+    this.cameraStateSyncInterval = setInterval(() => {
+      if (this.roomId && this.isConnected) {
+        this.matching.sendCameraState(this.roomId, this.isCameraOff);
+      }
+    }, 2000);
+  }
+
+  private stopCameraStateSync() {
+    if (this.cameraStateSyncInterval) {
+      clearInterval(this.cameraStateSyncInterval);
+      this.cameraStateSyncInterval = null;
     }
   }
 

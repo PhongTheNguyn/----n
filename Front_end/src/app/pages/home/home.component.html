@@ -139,6 +139,12 @@
           </div>
             <div class="camera-off-overlay peer-camera-off-overlay" *ngIf="isConnected && isPeerCameraOff">
               <img
+                class="camera-off-bg"
+                [src]="peerAvatarUrl"
+                alt=""
+                (error)="onAvatarError($event)"
+              />
+              <img
                 class="camera-off-avatar"
                 [src]="peerAvatarUrl"
                 alt="Avatar đối phương"
@@ -164,6 +170,12 @@
               <p class="local-label">Bạn</p>
             </div>
             <div class="camera-off-overlay" *ngIf="isCameraOff && localStream">
+              <img
+                class="camera-off-bg"
+                [src]="localAvatarUrl"
+                alt=""
+                (error)="onAvatarError($event)"
+              />
               <img
                 class="camera-off-avatar"
                 [src]="localAvatarUrl"
