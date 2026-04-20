@@ -97,7 +97,6 @@
 
           <!-- Remote Video -->
           <div class="video-box remote-video" [class.connected]="isConnected">
-          <div class="video-black-backdrop"></div>
           <div class="video-placeholder" *ngIf="!isConnected" (click)="closePeerActionMenu()">
               <mat-spinner diameter="60"></mat-spinner>
               <p class="status-text">Đang tìm người phù hợp...</p>
@@ -163,7 +162,6 @@
 
           <!-- Local Video -->
           <div class="video-box local-video" [class.camera-off]="isCameraOff">
-            <div class="video-black-backdrop"></div>
             <video #localVideo autoplay muted playsinline class="video-element local-video-el"></video>
             <div class="video-placeholder local-placeholder" *ngIf="!localStream">
               <div class="avatar-small">
