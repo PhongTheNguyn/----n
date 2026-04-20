@@ -438,9 +438,16 @@
     z-index: 0;
   }
 
-  > *:not(.video-black-backdrop) {
+  > *:not(.video-black-backdrop):not(.camera-off-overlay):not(.peer-intro-overlay) {
     position: relative;
     z-index: 1;
+  }
+
+  .camera-off-overlay,
+  .peer-intro-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
   }
 
   &.camera-off {
