@@ -161,6 +161,7 @@
   // box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-template-areas: "local remote";
   gap: 16px;
   min-height: 0;
 }
@@ -640,11 +641,16 @@
 }
 
 .remote-video {
+  grid-area: remote;
   background: #000;
 
   &.connected {
     background: #000;
   }
+}
+
+.local-video {
+  grid-area: local;
 }
 
 .video-placeholder {

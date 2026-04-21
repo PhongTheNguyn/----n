@@ -1,5 +1,5 @@
 import { Component, ViewChild } from '@angular/core';
-import { Router, RouterLink, RouterOutlet } from '@angular/router';
+import { RouterLink, RouterOutlet } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -127,8 +127,7 @@ export class AdminLayoutComponent {
   @ViewChild('sidenav') sidenav!: MatSidenav;
 
   constructor(
-    private auth: AuthService,
-    private router: Router
+    private auth: AuthService
   ) {}
 
   logout() {

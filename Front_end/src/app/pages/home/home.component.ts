@@ -66,6 +66,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   private peerIntroTimeout: ReturnType<typeof setTimeout> | null = null;
   private cameraStateSyncInterval: ReturnType<typeof setInterval> | null = null;
   private localVideoTrack: MediaStreamTrack | null = null;
+  private videoSender: RTCRtpSender | null = null;
   private originalBodyOverflow = '';
   private originalHtmlOverflow = '';
   private subs: Subscription[] = [];
@@ -205,7 +206,7 @@ export class HomeComponent implements OnInit, OnDestroy {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: false
         }
       });
       this.attachLocalStream();
@@ -245,10 +246,38 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.localStream?.getAudioTracks().forEach((t) => (t.enabled = !this.isMicMuted));
   }
 
-  toggleCamera() {
-    this.isCameraOff = !this.isCameraOff;
-    this.localStream?.getVideoTracks().forEach((t) => (t.enabled = !this.isCameraOff));
-    this.sendCurrentCameraState();
+  async toggleCamera() {
+    if (!this.localStream) return;
+
+    // Turn off camera for real: stop track so hardware LED can go off.
+    if (!this.isCameraOff) {
+      const currentVideoTrack = this.localStream.getVideoTracks()[0];
+      if (currentVideoTrack) {
+        this.localStream.removeTrack(currentVideoTrack);
+        currentVideoTrack.stop();
+      }
+      await this.replaceVideoSenderTrack(null);
+      this.isCameraOff = true;
+      this.attachLocalStream();
+      this.sendCurrentCameraState();
+      return;
+    }
+
+    // Turn camera back on by getting a fresh video track.
+    try {
+      const videoOnlyStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      const newVideoTrack = videoOnlyStream.getVideoTracks()[0];
+      if (!newVideoTrack) return;
+
+      this.localStream.addTrack(newVideoTrack);
+      await this.replaceVideoSenderTrack(newVideoTrack);
+      this.isCameraOff = false;
+      this.attachLocalStream();
+      this.sendCurrentCameraState();
+    } catch (err) {
+      console.error('Re-enable camera failed:', err);
+      this.snackBar.open('Không thể bật lại camera. Kiểm tra quyền trình duyệt.', 'Đóng', { duration: 4000 });
+    }
   }
 
   sendChatMessage() {
@@ -469,7 +498,12 @@ export class HomeComponent implements OnInit, OnDestroy {
         count += 1;
       }
       const avg = count ? sum / count : 0;
-      const level = Math.min(1, avg / 42);
+      // Add a small noise gate and reduce sensitivity when camera is off
+      // so mic bars do not look constantly high in that state.
+      const noiseFloor = this.isCameraOff ? 14 : 10;
+      const normalized = Math.max(0, avg - noiseFloor);
+      const sensitivityDivisor = this.isCameraOff ? 62 : 52;
+      const level = Math.min(1, normalized / sensitivityDivisor);
       const base = this.isMicMuted ? 0.06 : 0.14;
       const pattern = [0.55, 0.75, 1, 0.75, 0.55];
       this.micBars = pattern.map((weight) => Math.min(1, base + level * weight));
@@ -523,7 +557,13 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.peerConnection = new RTCPeerConnection(this.config);
     this.peerConnection.onconnectionstatechange = () => this.updateNetworkQuality();
     this.peerConnection.oniceconnectionstatechange = () => this.updateNetworkQuality();
-    this.localStream?.getTracks().forEach((t) => this.peerConnection!.addTrack(t, this.localStream!));
+    this.videoSender = null;
+    this.localStream?.getTracks().forEach((t) => {
+      const sender = this.peerConnection!.addTrack(t, this.localStream!);
+      if (t.kind === 'video') {
+        this.videoSender = sender;
+      }
+    });
 
     this.peerConnection.ontrack = (e) => {
       setTimeout(() => {
@@ -569,7 +609,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.sendCurrentCameraState();
   }
 
-  private handlePeerLeft(message?: string) {
+  private handlePeerLeft() {
     this.resetPeerState();
     this.matchingStatus = MatchingStatus.SEARCHING;
     this.matching.joinQueue(this.filterForm.value);
@@ -604,6 +644,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.stopPeerMicVisualizer();
     this.peerConnection?.close();
     this.peerConnection = null;
+    this.videoSender = null;
     this.remoteStream = null;
     this.peerCameraOffSignaled = null;
     this.isPeerCameraOff = false;
@@ -738,7 +779,13 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   private isLocalCameraUnavailable(): boolean {
     if (this.isCameraOff) return true;
-    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return true;
+    if (
+      this.isMobileView &&
+      typeof document !== 'undefined' &&
+      document.visibilityState !== 'visible'
+    ) {
+      return true;
+    }
     const track = this.localStream?.getVideoTracks?.()[0];
     if (!track) return true;
     return !track.enabled || track.readyState !== 'live' || track.muted;
@@ -759,6 +806,25 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.showPeerIntro = false;
       this.peerIntroTimeout = null;
     }, 1600);
+  }
+
+  private async replaceVideoSenderTrack(track: MediaStreamTrack | null) {
+    if (!this.peerConnection) return;
+
+    const sender =
+      this.videoSender ||
+      this.peerConnection.getSenders().find((s) => s.track?.kind === 'video') ||
+      null;
+
+    if (sender) {
+      await sender.replaceTrack(track);
+      this.videoSender = sender;
+      return;
+    }
+
+    if (track && this.localStream) {
+      this.videoSender = this.peerConnection.addTrack(track, this.localStream);
+    }
   }
 
   private startPeerMicVisualizer() {

@@ -35,13 +35,11 @@
 
   .back-button {
     margin-right: 8px;
-  }
+    color: #111827 !important;
 
-  .header-save-btn {
-    margin-left: auto;
-    height: 40px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #5b67f1 0%, #7a5af8 100%) !important;
+    .fi {
+      color: #111827 !important;
+    }
   }
 
   h1 {
@@ -145,6 +143,15 @@
       left: 50%;
       transform: translateX(-50%);
     }
+  }
+
+  .logout-button {
+    height: 52px;
+    padding: 0 20px;
+    border-radius: 16px;
+    background: #ef4444 !important;
+    color: #ffffff !important;
+    font-weight: 600;
   }
 }
 

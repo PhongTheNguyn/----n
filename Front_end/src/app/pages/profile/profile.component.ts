@@ -103,7 +103,7 @@ export class ProfileComponent implements OnInit {
         bio: this.profileForm.value.bio
       };
       this.profileService.updateProfile(data).subscribe({
-        next: (user) => {
+        next: () => {
           if (avatarUrl) {
             this.auth.updateStoredUser({ avatarUrl });
           }

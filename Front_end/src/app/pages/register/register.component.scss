@@ -124,6 +124,10 @@
       border-radius: 10px;
     }
   }
+
+  .mat-mdc-form-field-icon-suffix .mat-mdc-icon-button .fi {
+    color: #111827 !important;
+  }
 }
 
 @media (max-width: 600px) {

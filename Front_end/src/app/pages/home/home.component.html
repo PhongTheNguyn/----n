@@ -86,7 +86,7 @@
               {{ isMicMuted ? 'Mic tắt' : 'Mic bật' }}
             </span>
             <span class="badge" [class.badge-off]="isCameraOff">
-              <i [class]="isCameraOff ? 'fi fi-rr-video-camera-slash' : 'fi fi-rr-video-camera'"></i>
+              <i [class]="isCameraOff ? 'fi fi-rr-video-slash' : 'fi fi-rr-video-camera'"></i>
               {{ isCameraOff ? 'Cam tắt' : 'Cam bật' }}
             </span>
             <span class="badge">
@@ -240,7 +240,7 @@
             <i [class]="isMicMuted ? 'fi fi-rr-microphone-slash' : 'fi fi-rr-microphone'"></i>
           </button>
           <button mat-fab color="primary" (click)="toggleCamera()" [class.camera-off]="isCameraOff" [matTooltip]="isCameraOff ? 'Bật camera' : 'Tắt camera'">
-            <i [class]="isCameraOff ? 'fi fi-rr-video-camera-slash' : 'fi fi-rr-video-camera'"></i>
+            <i [class]="isCameraOff ? 'fi fi-rr-video-slash' : 'fi fi-rr-video-camera'"></i>
           </button>
         </div>
         <div class="controls-right">

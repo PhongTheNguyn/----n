@@ -6,9 +6,6 @@
         <i class="fi fi-rr-arrow-left"></i>
       </button>
       <h1>Chỉnh sửa hồ sơ</h1>
-      <button mat-raised-button color="primary" class="header-save-btn" type="submit" form="profile-form" [disabled]="isLoading || profileForm.invalid">
-        Lưu
-      </button>
     </div>
 
     <form id="profile-form" [formGroup]="profileForm" (ngSubmit)="onSubmit()" class="profile-form">
@@ -93,7 +90,7 @@
           <mat-spinner *ngIf="isLoading" diameter="20" class="button-spinner"></mat-spinner>
           <span *ngIf="!isLoading">Lưu thay đổi</span>
         </button>
-        <button mat-button type="button" (click)="logout()" [disabled]="isLoading">
+        <button mat-raised-button type="button" (click)="logout()" [disabled]="isLoading" class="logout-button">
           Đăng xuất
         </button>
       </div>
