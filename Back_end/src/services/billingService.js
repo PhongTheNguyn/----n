@@ -85,7 +85,7 @@ async function addCoinsToUser(userId, coinAmount, reason = 'manual_topup', metad
       data: {
         user_id: userId,
         amount,
-        type: 'topup',
+        type: 'Cộng',
         reason,
         metadata
       }
@@ -133,7 +133,7 @@ async function chargeFilterCoins(userId, filters) {
       data: {
         user_id: userId,
         amount: -filterCost,
-        type: 'filter_charge',
+        type: 'trừ',
         reason: 'Charge for gender/country filters',
         metadata: {
           gender: filters?.gender || 'all',
