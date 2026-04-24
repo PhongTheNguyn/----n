@@ -18,6 +18,7 @@ model User {
   bio                                           String?
   avatarUrl                                     String?         @map("avatar_url")
   role                                          String          @default("user") @db.VarChar(20)
+  coinBalance                                   Int             @default(0) @map("coin_balance")
   isBanned                                      Boolean         @default(false) @map("is_banned")
   bannedUntil                                   DateTime?       @map("banned_until") @db.Timestamptz(6)
   createdAt                                     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -96,4 +97,68 @@ model system_logs {
   @@index([action], map: "idx_system_logs_action")
   @@index([created_at], map: "idx_system_logs_created")
   @@map("system_logs")
+}
+
+model coin_transactions {
+  id          String   @id @default(cuid())
+  user_id     String   @db.VarChar(100)
+  amount      Int
+  type        String   @db.VarChar(30)
+  reason      String?  @db.VarChar(255)
+  metadata    Json?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id], map: "idx_coin_transactions_user")
+  @@index([created_at], map: "idx_coin_transactions_created")
+}
+
+model user_daily_usage {
+  id                String   @id @default(cuid())
+  user_id           String   @db.VarChar(100)
+  usage_date        DateTime @db.Date
+  free_seconds_used Int      @default(0)
+  paid_seconds_used Int      @default(0)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([user_id, usage_date], map: "unique_user_daily_usage")
+  @@index([usage_date], map: "idx_user_daily_usage_date")
+}
+
+model momo_payments {
+  id               String    @id @default(cuid())
+  user_id          String    @db.VarChar(100)
+  order_id         String    @unique @db.VarChar(100)
+  request_id       String    @unique @db.VarChar(100)
+  amount_vnd       Int
+  coin_amount      Int
+  status           String    @default("pending") @db.VarChar(20)
+  momo_result_code Int?
+  pay_url          String?   @db.Text
+  raw_response     Json?
+  paid_at          DateTime? @db.Timestamptz(6)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([user_id], map: "idx_momo_payments_user")
+  @@index([status], map: "idx_momo_payments_status")
+}
+
+model zalopay_payments {
+  id                String    @id @default(cuid())
+  user_id           String    @db.VarChar(100)
+  app_trans_id      String    @unique @db.VarChar(100)
+  zp_trans_id       String?   @db.VarChar(100)
+  app_id            Int
+  amount_vnd        Int
+  coin_amount       Int
+  status            String    @default("pending") @db.VarChar(20)
+  zlp_return_code   Int?
+  order_url         String?   @db.Text
+  raw_response      Json?
+  paid_at           DateTime? @db.Timestamptz(6)
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([user_id], map: "idx_zalopay_payments_user")
+  @@index([status], map: "idx_zalopay_payments_status")
 }

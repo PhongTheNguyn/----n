@@ -37,6 +37,7 @@ import { AdminReportsComponent } from './pages/admin/admin-reports.component';
 import { AdminSessionsComponent } from './pages/admin/admin-sessions.component';
 import { AdminLogsComponent } from './pages/admin/admin-logs.component';
 import { AdminConfigComponent } from './pages/admin/admin-config.component';
+import { AdminPaymentsComponent } from './pages/admin/admin-payments.component';
 import { CountryFlagUrlPipe } from './pipes/country-flag-url.pipe';
 
 @NgModule({
@@ -69,6 +70,7 @@ import { CountryFlagUrlPipe } from './pipes/country-flag-url.pipe';
           { path: '', component: AdminDashboardComponent },
           { path: 'reports', component: AdminReportsComponent },
           { path: 'sessions', component: AdminSessionsComponent },
+          { path: 'payments', component: AdminPaymentsComponent },
           { path: 'logs', component: AdminLogsComponent },
           { path: 'config', component: AdminConfigComponent }
         ]
@@ -95,6 +97,7 @@ import { CountryFlagUrlPipe } from './pipes/country-flag-url.pipe';
     AdminDashboardComponent,
     AdminReportsComponent,
     AdminSessionsComponent,
+    AdminPaymentsComponent,
     AdminLogsComponent,
     AdminConfigComponent
   ],

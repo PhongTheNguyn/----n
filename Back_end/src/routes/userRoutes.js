@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const { authMiddleware } = require('../middleware/auth');
 const { getProfile, updateProfile, uploadAvatar } = require('../controllers/userController');
+const { getMyBillingSummary, getMyCoinTransactions } = require('../controllers/billingController');
 
 const uploadDir = process.env.UPLOAD_DIR || './uploads';
 const storage = multer.diskStorage({
@@ -27,6 +28,8 @@ const router = express.Router();
 router.use(authMiddleware);
 
 router.get('/profile', getProfile);
+router.get('/billing-summary', getMyBillingSummary);
+router.get('/coin-transactions', getMyCoinTransactions);
 router.put('/profile', updateProfile);
 router.post('/avatar', upload.single('avatar'), uploadAvatar);
 

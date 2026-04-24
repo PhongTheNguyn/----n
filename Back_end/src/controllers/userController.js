@@ -14,7 +14,8 @@ async function getProfile(req, res) {
         country: true,
         age: true,
         bio: true,
-        avatarUrl: true
+        avatarUrl: true,
+        coinBalance: true
       }
     });
     if (!user) {
@@ -49,7 +50,8 @@ async function updateProfile(req, res) {
         country: true,
         age: true,
         bio: true,
-        avatarUrl: true
+        avatarUrl: true,
+        coinBalance: true
       }
     });
     res.json(user);

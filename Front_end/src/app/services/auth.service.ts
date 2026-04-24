@@ -16,6 +16,7 @@ export interface User {
   age: number;
   bio?: string;
   avatarUrl?: string;
+  coinBalance?: number;
   role?: string;
 }
 

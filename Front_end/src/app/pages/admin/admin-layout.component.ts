@@ -53,6 +53,10 @@ import { AuthService } from '../../services/auth.service';
             <i matListItemIcon class="fi fi-rr-phone-call"></i>
             <span matListItemTitle>Phiên gọi</span>
           </a>
+          <a mat-list-item routerLink="/admin/payments" routerLinkActive="active">
+            <i matListItemIcon class="fi fi-rr-wallet"></i>
+            <span matListItemTitle>Thanh toán</span>
+          </a>
           <a mat-list-item routerLink="/admin/logs" routerLinkActive="active">
             <i matListItemIcon class="fi fi-rr-clipboard-list"></i>
             <span matListItemTitle>Nhật ký</span>
@@ -73,8 +77,10 @@ import { AuthService } from '../../services/auth.service';
       .spacer { flex: 1 1 auto; }
       .admin-toolbar {
         box-shadow: 0 10px 30px rgba(15, 18, 33, 0.25);
-        background: rgba(23, 26, 46, 0.8) !important;
+        background: #ffffff !important;
         backdrop-filter: blur(10px);
+        color: #111827;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.12);
       }
       .toolbar-title {
         margin-left: 10px;
@@ -86,33 +92,33 @@ import { AuthService } from '../../services/auth.service';
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        color: #fff !important;
+        color: #111827 !important;
       }
       .toolbar-action .fi {
-        color: #fff;
+        color: #111827;
         font-size: 16px;
         line-height: 1;
         display: inline-flex;
         align-items: center;
         transform: translateY(1px);
       }
-      .admin-container { height: calc(100vh - 64px); background: #0f1221; }
+      .admin-container { height: calc(100vh - 64px); background: #f8fafc; }
       .admin-sidenav {
         width: 250px;
-        border-right: 1px solid rgba(255, 255, 255, 0.08);
-        background: #171a2e;
+        border-right: 1px solid rgba(15, 23, 42, 0.12);
+        background: #ffffff;
       }
       .admin-sidenav a[mat-list-item] {
-        color: rgba(255, 255, 255, 0.92);
+        color: #1f2937;
       }
       .admin-sidenav a[mat-list-item] [matListItemTitle] {
-        color: #fff !important;
+        color: #111827 !important;
       }
       .admin-sidenav a[mat-list-item] .fi {
-        color: #fff;
+        color: #111827;
       }
       .admin-content { padding: 24px; }
-      .active { background: rgba(91, 103, 241, 0.2); border-radius: 12px; }
+      .active { background: rgba(91, 103, 241, 0.14); border-radius: 12px; }
       .fi { font-size: 20px; line-height: 1; }
 
       @media (max-width: 768px) {

@@ -9,7 +9,10 @@ const {
   getAdminConfig,
   updateAdminConfig,
   getSessions,
-  getLogs
+  getLogs,
+  topupUserCoins,
+  getPayments,
+  syncPayment
 } = require('../controllers/adminController');
 
 const router = express.Router();
@@ -24,5 +27,8 @@ router.get('/config', getAdminConfig);
 router.put('/config', updateAdminConfig);
 router.get('/sessions', getSessions);
 router.get('/logs', getLogs);
+router.post('/topup-coins', topupUserCoins);
+router.get('/payments', getPayments);
+router.post('/payments/:orderId/sync', syncPayment);
 
 module.exports = router;

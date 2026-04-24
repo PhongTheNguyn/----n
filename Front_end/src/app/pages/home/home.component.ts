@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef, HostListener } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
@@ -8,6 +9,7 @@ import { AuthService } from '../../services/auth.service';
 import { MatchingService } from '../../services/matching.service';
 import { ReportBlockService } from '../../services/report-block.service';
 import { AdminService } from '../../services/admin.service';
+import { BillingService, BillingSummary, CoinTransaction } from '../../services/billing.service';
 import { ReportDialogComponent } from '../../components/report-dialog/report-dialog.component';
 import { getApiUrl } from '../../core/api-config';
 
@@ -59,6 +61,12 @@ export class HomeComponent implements OnInit, OnDestroy {
   isMobileView = false;
   isChatBubbleOpen = false;
   chatBubblePos = { x: 16, y: 180 };
+  billingSummary: BillingSummary | null = null;
+  latestTransactions: CoinTransaction[] = [];
+  readonly topupPackages = [1, 5, 10, 20];
+  isCreatingPayment = false;
+  paymentStatusText = '';
+  isWalletPopupOpen = false;
   private peerCameraOffSignaled: boolean | null = null;
   private bubbleDragPointerId: number | null = null;
   private bubbleDragStart = { x: 0, y: 0, bx: 16, by: 180 };
@@ -108,11 +116,13 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   constructor(
     private fb: FormBuilder,
+    private route: ActivatedRoute,
     private router: Router,
     private auth: AuthService,
     private matching: MatchingService,
     private reportBlock: ReportBlockService,
     private admin: AdminService,
+    private billingService: BillingService,
     private dialog: MatDialog,
     private snackBar: MatSnackBar
   ) {
@@ -135,6 +145,20 @@ export class HomeComponent implements OnInit, OnDestroy {
       window.addEventListener('blur', this.onVisibilityOrPageHidden);
     }
     this.subs.push(
+      this.route.queryParams.subscribe((params) => {
+        const resultCode = String(params['resultCode'] ?? params['status'] ?? '');
+        const orderId = params['apptransid'] || params['orderId'] || params['app_trans_id'];
+        if (resultCode === '0' || resultCode === '1') {
+          this.snackBar.open('Thanh toán thành công qua ZaloPay, coin sẽ được cộng sau vài giây.', 'Đóng', { duration: 4500 });
+          if (orderId) {
+            this.checkPaymentStatus(orderId);
+          }
+          this.refreshBillingSummary();
+          this.loadTransactions();
+        } else if (resultCode) {
+          this.snackBar.open('Thanh toán chưa thành công hoặc đã bị hủy.', 'Đóng', { duration: 4000 });
+        }
+      }),
       this.matching.onMatched().subscribe(({ roomId, peerUserId, peerDisplayName, peerAvatarUrl, isInitiator }) => {
         this.roomId = roomId;
         this.peerUserId = peerUserId || null;
@@ -155,6 +179,24 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.matching.onPeerSkipped().subscribe(() => this.handlePeerLeft()),
       this.matching.onPeerEnded().subscribe(() => this.handlePeerLeft()),
       this.matching.onPeerDisconnected().subscribe(() => this.handlePeerLeft()),
+      this.matching.onWalletUpdated().subscribe((event) => {
+        this.auth.updateStoredUser({ coinBalance: event.coinBalance });
+        if (this.billingSummary) {
+          this.billingSummary = { ...this.billingSummary, coinBalance: event.coinBalance };
+        }
+        if (event.chargedCoins && event.chargedCoins > 0) {
+          const message = event.type === 'filter'
+            ? `Đã trừ ${event.chargedCoins} coin cho bộ lọc`
+            : `Đã trừ ${event.chargedCoins} coin cho cuộc gọi`;
+          this.snackBar.open(message, 'Đóng', { duration: 2500 });
+        }
+        this.refreshBillingSummary();
+        this.loadTransactions();
+      }),
+      this.matching.onBillingError().subscribe((err) => {
+        this.snackBar.open(err.message || 'Không đủ coin để thực hiện thao tác', 'Đóng', { duration: 4000 });
+        this.refreshBillingSummary();
+      }),
       this.matching.onPeerCameraState().subscribe(({ isCameraOff }) => {
         this.peerCameraOffSignaled = isCameraOff;
         this.isPeerCameraOff = isCameraOff;
@@ -166,6 +208,8 @@ export class HomeComponent implements OnInit, OnDestroy {
         }
       })
     );
+    this.refreshBillingSummary();
+    this.loadTransactions();
   }
 
   ngOnDestroy() {
@@ -192,6 +236,15 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   async startMatching() {
     if (this.matchingStatus === MatchingStatus.SEARCHING) return;
+    const filterCost = this.selectedFilterCost;
+    if (filterCost > 0 && this.currentCoinBalance < filterCost) {
+      this.snackBar.open(
+        `Không đủ coin để dùng bộ lọc. Cần ${filterCost} coin, hiện có ${this.currentCoinBalance} coin.`,
+        'Đóng',
+        { duration: 4200 }
+      );
+      return;
+    }
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
       this.snackBar.open(
         'Trình duyệt không hỗ trợ camera/micro hoặc cần truy cập qua HTTPS/localhost. Hãy dùng Chrome/Firefox và mở qua localhost hoặc HTTPS.',
@@ -443,6 +496,62 @@ export class HomeComponent implements OnInit, OnDestroy {
     return this.auth.getUser()?.avatarUrl || this.defaultAvatarUrl;
   }
 
+  get currentCoinBalance(): number {
+    return this.billingSummary?.coinBalance ?? this.auth.getUser()?.coinBalance ?? 0;
+  }
+
+  get selectedFilterCost(): number {
+    const gender = this.filterForm.value?.gender;
+    const country = this.filterForm.value?.country;
+    return (gender && gender !== 'all' ? 1 : 0) + (country && country !== 'all' ? 1 : 0);
+  }
+
+  get freeMinutesRemainingToday(): number {
+    const sec = this.billingSummary?.freeCallSecondsRemainingToday ?? 0;
+    return Math.max(0, Math.floor(sec / 60));
+  }
+
+  get paidRateText(): string {
+    if (!this.billingSummary) return '1 coin / 10 phút';
+    const blockMinutes = Math.max(1, Math.floor(this.billingSummary.callBillingBlockSeconds / 60));
+    return `${this.billingSummary.coinsPerCallBlock} coin / ${blockMinutes} phút`;
+  }
+
+  onAccountMenuOpened() {
+    this.refreshBillingSummary();
+    this.loadTransactions();
+  }
+
+  openWalletPopup() {
+    this.isWalletPopupOpen = true;
+    this.refreshBillingSummary();
+    this.loadTransactions();
+  }
+
+  closeWalletPopup() {
+    this.isWalletPopupOpen = false;
+  }
+
+  createZaloPayPayment(coins: number) {
+    if (this.isCreatingPayment) return;
+    this.isCreatingPayment = true;
+    this.billingService.createZaloPayPayment(coins).subscribe({
+      next: (res) => {
+        this.isCreatingPayment = false;
+        if (res?.payUrl) {
+          this.paymentStatusText = `Đang chuyển sang ZaloPay để thanh toán ${coins} coin...`;
+          window.location.href = res.payUrl;
+          return;
+        }
+        this.snackBar.open('Không lấy được link thanh toán ZaloPay.', 'Đóng', { duration: 4000 });
+      },
+      error: (err) => {
+        this.isCreatingPayment = false;
+        this.snackBar.open(err?.error?.error || 'Tạo thanh toán ZaloPay thất bại', 'Đóng', { duration: 4000 });
+      }
+    });
+  }
+
   get peerAvatarUrl(): string {
     return this.peerAvatarUrlValue || this.defaultAvatarUrl;
   }
@@ -607,6 +716,49 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.matching.sendOffer(this.roomId, offer);
     }
     this.sendCurrentCameraState();
+  }
+
+  private refreshBillingSummary() {
+    this.billingService.getMySummary().subscribe({
+      next: (summary) => {
+        this.billingSummary = summary;
+        this.auth.updateStoredUser({ coinBalance: summary.coinBalance });
+      },
+      error: () => {}
+    });
+  }
+
+  private loadTransactions() {
+    this.billingService.getMyTransactions(5).subscribe({
+      next: (res) => {
+        this.latestTransactions = res.transactions || [];
+      },
+      error: () => {}
+    });
+  }
+
+  private checkPaymentStatus(orderId: string) {
+    this.billingService.getZaloPayPaymentStatus(orderId).subscribe({
+      next: (payment) => {
+        if (payment.status === 'paid') {
+          this.paymentStatusText = `Đơn ${payment.orderId} đã thanh toán thành công (+${payment.coinAmount} coin).`;
+          this.refreshBillingSummary();
+          this.loadTransactions();
+        } else {
+          this.paymentStatusText = `Đơn ${payment.orderId} đang ở trạng thái: ${payment.status}. Đang thử đồng bộ từ ZaloPay...`;
+          this.billingService.queryZaloPayOrder(orderId).subscribe({
+            next: () => {
+              this.refreshBillingSummary();
+              this.loadTransactions();
+            },
+            error: () => {}
+          });
+        }
+      },
+      error: () => {
+        this.paymentStatusText = 'Không kiểm tra được trạng thái thanh toán, vui lòng thử tải lại.';
+      }
+    });
   }
 
   private handlePeerLeft() {

@@ -49,8 +49,8 @@ import { CommonModule } from '@angular/common';
   `,
   styles: [
     `
-      h1 { margin: 0 0 4px; color: #f9fafb; }
-      .sub { margin: 0 0 16px; color: #cbd5e1; }
+      h1 { margin: 0 0 4px; color: #111827; }
+      .sub { margin: 0 0 16px; color: #4b5563; }
       .config-card {
         background: rgba(247, 248, 252, 0.96);
         border-radius: 20px;

@@ -27,6 +27,8 @@ export class MatchingService {
   private peerSkipped$ = new Subject<void>();
   private peerEnded$ = new Subject<void>();
   private peerDisconnected$ = new Subject<void>();
+  private walletUpdated$ = new Subject<{ coinBalance: number; chargedCoins?: number; durationSeconds?: number; type?: string }>();
+  private billingError$ = new Subject<{ message: string; coinBalance?: number; filterCost?: number }>();
   private peerCameraState$ = new Subject<{ isCameraOff: boolean; from: string }>();
   private peerChatMessage$ = new Subject<{ text: string; from: string; sentAt: number }>();
 
@@ -65,6 +67,14 @@ export class MatchingService {
 
     this.socket.on('peer-disconnected', () => {
       this.peerDisconnected$.next();
+    });
+
+    this.socket.on('wallet-updated', (data: { coinBalance: number; chargedCoins?: number; durationSeconds?: number; type?: string }) => {
+      this.walletUpdated$.next(data);
+    });
+
+    this.socket.on('billing-error', (data: { message: string; coinBalance?: number; filterCost?: number }) => {
+      this.billingError$.next(data);
     });
 
     this.socket.on('peer-camera-state', (data: { isCameraOff: boolean; from: string }) => {
@@ -144,6 +154,14 @@ export class MatchingService {
 
   onPeerDisconnected(): Observable<void> {
     return this.peerDisconnected$.asObservable();
+  }
+
+  onWalletUpdated(): Observable<{ coinBalance: number; chargedCoins?: number; durationSeconds?: number; type?: string }> {
+    return this.walletUpdated$.asObservable();
+  }
+
+  onBillingError(): Observable<{ message: string; coinBalance?: number; filterCost?: number }> {
+    return this.billingError$.asObservable();
   }
 
   onPeerCameraState(): Observable<{ isCameraOff: boolean; from: string }> {

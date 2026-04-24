@@ -13,7 +13,14 @@ const userRoutes = require('./routes/userRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const blockRoutes = require('./routes/blockRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 const { prisma } = require('./config/db');
+const {
+  getFilterCoinCost,
+  chargeFilterCoins,
+  chargeCallDuration,
+  getBillingSummary
+} = require('./services/billingService');
 
 const app = express();
 const server = http.createServer(app);
@@ -44,11 +51,12 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/block', blockRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/webrtc', webrtcRoutes);
+app.use('/api/payment', paymentRoutes);
 
 const PORT = process.env.PORT || 3000;
 
 const queue = [];
-const rooms = new Map(); // roomId -> { peerIds: [id1, id2], userA, userB, sessionId? }
+const rooms = new Map(); // roomId -> { peerIds: [id1, id2], userA, userB, sessionId?, startedAtMs? }
 const normalizeFilterValue = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
 const normalizeGenderFilter = (v) => (v === 'male' || v === 'female' ? v : 'all');
 const normalizeCountryFilter = (v) => (!v || v === 'all' ? 'all' : v);
@@ -86,16 +94,64 @@ io.on('connection', (socket) => {
       socket.emit('searching');
       return;
     }
+    const normalizedFilters = {
+      gender: normalizeGenderFilter(requestedGender),
+      country: normalizeCountryFilter(requestedCountry)
+    };
     const me = {
       socketId: socket.id,
       userId: socket.userId,
-      prefGender: normalizeGenderFilter(requestedGender),
-      prefCountry: normalizeCountryFilter(requestedCountry),
+      prefGender: normalizedFilters.gender,
+      prefCountry: normalizedFilters.country,
       userGender: normalizeFilterValue(myProfile?.gender),
       userCountry: normalizeFilterValue(myProfile?.country),
       displayName: myProfile?.displayName || null,
       avatarUrl: myProfile?.avatarUrl || null
     };
+
+    const [summary, filterCost] = await Promise.all([
+      getBillingSummary(socket.userId).catch(() => null),
+      Promise.resolve(getFilterCoinCost(normalizedFilters))
+    ]);
+
+    if (!summary) {
+      socket.emit('billing-error', { message: 'Không thể tải thông tin ví. Vui lòng thử lại.' });
+      return;
+    }
+
+    if (summary.freeCallSecondsRemainingToday <= 0 && summary.coinBalance <= 0) {
+      socket.emit('billing-error', {
+        message: 'Bạn đã hết 10 phút miễn phí hôm nay và không đủ coin để gọi tiếp.',
+        coinBalance: summary.coinBalance
+      });
+      return;
+    }
+
+    if (filterCost > 0 && summary.coinBalance < filterCost) {
+      socket.emit('billing-error', {
+        message: `Không đủ coin để dùng bộ lọc (cần ${filterCost} coin).`,
+        coinBalance: summary.coinBalance,
+        filterCost
+      });
+      return;
+    }
+
+    if (filterCost > 0) {
+      try {
+        const filterCharge = await chargeFilterCoins(socket.userId, normalizedFilters);
+        socket.emit('wallet-updated', {
+          coinBalance: filterCharge.coinBalance,
+          chargedCoins: filterCharge.chargedCoins,
+          type: 'filter'
+        });
+      } catch (err) {
+        socket.emit('billing-error', {
+          message: 'Không thể trừ coin cho bộ lọc. Vui lòng thử lại.',
+          code: err?.code || 'FILTER_CHARGE_ERROR'
+        });
+        return;
+      }
+    }
 
     const blockedByMe = await prisma.blocked_users
       .findMany({ where: { blocker_id: socket.userId }, select: { blocked_id: true } })
@@ -135,7 +191,8 @@ io.on('connection', (socket) => {
         peerIds: [socket.id, match.socketId],
         userA: socket.userId,
         userB: match.userId,
-        sessionId: null
+        sessionId: null,
+        startedAtMs: Date.now()
       });
       socket.join(roomId);
       io.sockets.sockets.get(match.socketId)?.join(roomId);
@@ -213,6 +270,32 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('peer-chat-message', { text: clean, from: socket.id, sentAt: Date.now() });
   });
 
+  async function settleCallBilling(roomId, roomData) {
+    const startedAtMs = roomData?.startedAtMs || Date.now();
+    const durationSeconds = Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000));
+    const userIds = [roomData?.userA, roomData?.userB].filter(Boolean);
+
+    for (const uid of userIds) {
+      try {
+        const charge = await chargeCallDuration(uid, durationSeconds, {
+          roomId,
+          sessionId: roomData?.sessionId || null
+        });
+        const targetSocketId = (roomData.peerIds || []).find((id) => io.sockets.sockets.get(id)?.userId === uid);
+        if (targetSocketId) {
+          io.to(targetSocketId).emit('wallet-updated', {
+            coinBalance: charge.coinBalance,
+            chargedCoins: charge.chargedCoins,
+            durationSeconds,
+            type: 'call'
+          });
+        }
+      } catch (err) {
+        console.error('settleCallBilling error:', err);
+      }
+    }
+  }
+
   function endCall(roomId) {
     const r = rooms.get(roomId);
     if (r) {
@@ -220,6 +303,7 @@ io.on('connection', (socket) => {
       if (r.sessionId) {
         prisma.call_sessions.update({ where: { id: r.sessionId }, data: { ended_at: new Date() } }).catch(() => {});
       }
+      settleCallBilling(roomId, r).catch(() => {});
       rooms.delete(roomId);
     }
   }

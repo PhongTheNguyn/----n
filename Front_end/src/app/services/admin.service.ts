@@ -52,6 +52,20 @@ export interface AdminConfig {
   tempBanDays: number;
 }
 
+export interface PaymentItem {
+  id: string;
+  userId: string;
+  user?: { id: string; displayName?: string; email?: string } | null;
+  appTransId: string;
+  zpTransId?: string;
+  amountVnd: number;
+  coinAmount: number;
+  status: string;
+  returnCode?: number;
+  createdAt: string;
+  paidAt?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AdminService {
   private get apiUrl(): string {
@@ -126,6 +140,37 @@ export class AdminService {
       headers: this.headers(),
       params
     });
+  }
+
+  getPayments(
+    filters: { status?: string; userId?: string; orderId?: string },
+    page = 1,
+    limit = 20
+  ): Observable<{ payments: PaymentItem[]; total: number }> {
+    let params = new HttpParams().set('page', String(page)).set('limit', String(limit));
+    if (filters.status) params = params.set('status', filters.status);
+    if (filters.userId) params = params.set('userId', filters.userId);
+    if (filters.orderId) params = params.set('orderId', filters.orderId);
+    return this.http.get<{ payments: PaymentItem[]; total: number }>(`${this.apiUrl}/api/admin/payments`, {
+      headers: this.headers(),
+      params
+    });
+  }
+
+  syncPayment(orderId: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(
+      `${this.apiUrl}/api/admin/payments/${orderId}/sync`,
+      {},
+      { headers: this.headers() }
+    );
+  }
+
+  topupCoins(userId: string, coins: number): Observable<{ message: string; coinBalance: number; addedCoins: number }> {
+    return this.http.post<{ message: string; coinBalance: number; addedCoins: number }>(
+      `${this.apiUrl}/api/admin/topup-coins`,
+      { userId, coins },
+      { headers: this.headers() }
+    );
   }
 
   isAdmin(): boolean {

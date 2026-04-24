@@ -1,5 +1,12 @@
 const { prisma } = require('../config/db');
 const { randomUUID } = require('crypto');
+const { addCoinsToUser } = require('../services/billingService');
+const crypto = require('crypto');
+
+const ZALOPAY_QUERY_ENDPOINT =
+  process.env.ZALOPAY_QUERY_ENDPOINT || 'https://sb-openapi.zalopay.vn/v2/query';
+const ZALOPAY_APP_ID = Number(process.env.ZALOPAY_APP_ID || 0);
+const ZALOPAY_KEY1 = process.env.ZALOPAY_KEY1 || '';
 
 const DEFAULT_CONFIG = {
   warnThreshold: 3,
@@ -268,6 +275,149 @@ async function getLogs(req, res) {
   }
 }
 
+async function topupUserCoins(req, res) {
+  try {
+    const { userId, coins } = req.body;
+    const coinAmount = Number(coins);
+    if (!userId || !Number.isFinite(coinAmount) || coinAmount <= 0) {
+      return res.status(400).json({ error: 'userId và coins hợp lệ là bắt buộc' });
+    }
+
+    const result = await addCoinsToUser(
+      userId,
+      coinAmount,
+      'admin_topup',
+      { adminId: req.userId }
+    );
+
+    await createSystemLog({
+      action: 'admin_topup',
+      user_id: req.userId,
+      target_id: userId,
+      details: JSON.stringify({ coins: coinAmount })
+    });
+
+    return res.json({
+      message: 'Nạp coin thành công',
+      ...result
+    });
+  } catch (err) {
+    console.error('topupUserCoins error:', err);
+    return res.status(500).json({ error: 'Lỗi server' });
+  }
+}
+
+async function getPayments(req, res) {
+  try {
+    const { page = 1, limit = 20, status, userId, orderId } = req.query;
+    const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+    const where = {};
+    if (status) where.status = status;
+    if (userId) where.user_id = String(userId);
+    if (orderId) where.app_trans_id = { contains: String(orderId) };
+
+    const [items, total] = await Promise.all([
+      prisma.zalopay_payments.findMany({
+        where,
+        skip,
+        take: parseInt(limit, 10),
+        orderBy: { created_at: 'desc' }
+      }),
+      prisma.zalopay_payments.count({ where })
+    ]);
+
+    const userIds = [...new Set(items.map((x) => x.user_id).filter(Boolean))];
+    const users = userIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, displayName: true, email: true }
+        })
+      : [];
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    const payments = items.map((p) => ({
+      id: p.id,
+      userId: p.user_id,
+      user: userMap.get(p.user_id) || null,
+      appTransId: p.app_trans_id,
+      zpTransId: p.zp_trans_id,
+      amountVnd: p.amount_vnd,
+      coinAmount: p.coin_amount,
+      status: p.status,
+      returnCode: p.zlp_return_code,
+      createdAt: p.created_at,
+      paidAt: p.paid_at
+    }));
+
+    return res.json({ payments, total });
+  } catch (err) {
+    console.error('getPayments error:', err);
+    return res.status(500).json({ error: 'Lỗi server' });
+  }
+}
+
+function signZaloPay(data) {
+  return crypto.createHmac('sha256', ZALOPAY_KEY1).update(data).digest('hex');
+}
+
+async function syncPayment(req, res) {
+  try {
+    if (!ZALOPAY_APP_ID || !ZALOPAY_KEY1) {
+      return res.status(400).json({ error: 'ZaloPay chưa được cấu hình đầy đủ trên server.' });
+    }
+
+    const { orderId } = req.params;
+    const payment = await prisma.zalopay_payments.findUnique({ where: { app_trans_id: orderId } });
+    if (!payment) {
+      return res.status(404).json({ error: 'Không tìm thấy đơn thanh toán' });
+    }
+
+    const mac = signZaloPay(`${ZALOPAY_APP_ID}|${orderId}|${ZALOPAY_KEY1}`);
+    const response = await fetch(ZALOPAY_QUERY_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        app_id: String(ZALOPAY_APP_ID),
+        app_trans_id: orderId,
+        mac
+      })
+    });
+    const data = await response.json();
+
+    if (data.return_code === 1 && payment.status !== 'paid') {
+      await prisma.zalopay_payments.update({
+        where: { app_trans_id: orderId },
+        data: {
+          status: 'paid',
+          zlp_return_code: 1,
+          zp_trans_id: data.zp_trans_id ? String(data.zp_trans_id) : payment.zp_trans_id,
+          paid_at: payment.paid_at || new Date(),
+          raw_response: data
+        }
+      });
+
+      await addCoinsToUser(
+        payment.user_id,
+        payment.coin_amount,
+        'zalopay_topup',
+        { appTransId: orderId, zpTransId: data.zp_trans_id || null, amountVnd: payment.amount_vnd }
+      );
+    }
+
+    await createSystemLog({
+      action: 'payment_sync',
+      user_id: req.userId,
+      target_id: payment.user_id,
+      details: JSON.stringify({ orderId, returnCode: data.return_code })
+    });
+
+    return res.json({ message: 'Đã đồng bộ đơn', data });
+  } catch (err) {
+    console.error('syncPayment error:', err);
+    return res.status(500).json({ error: 'Lỗi đồng bộ đơn' });
+  }
+}
+
 async function createSystemLog(data) {
   try {
     const id = `cl${randomUUID().replace(/-/g, '').slice(0, 22)}`;
@@ -294,6 +444,9 @@ module.exports = {
   updateAdminConfig,
   getSessions,
   getLogs,
+  topupUserCoins,
+  getPayments,
+  syncPayment,
   createSystemLog,
   loadAdminConfig
 };

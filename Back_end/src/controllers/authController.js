@@ -68,6 +68,7 @@ async function register(req, res) {
         age: user.age,
         bio: user.bio,
         avatarUrl: user.avatarUrl,
+        coinBalance: user.coinBalance,
         role: user.role || 'user'
       }
     });
@@ -126,6 +127,7 @@ async function login(req, res) {
         age: user.age,
         bio: user.bio,
         avatarUrl: user.avatarUrl,
+        coinBalance: user.coinBalance,
         role: user.role || 'user'
       }
     });

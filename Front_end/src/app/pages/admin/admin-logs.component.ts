@@ -75,14 +75,15 @@ const ACTION_LABELS: Record<string, string> = {
   `,
   styles: [
     `
-      h1 { margin: 0 0 4px; color: #f9fafb; }
-      .sub { margin: 0 0 16px; color: #cbd5e1; }
+      h1 { margin: 0 0 4px; color: #111827; }
+      .sub { margin: 0 0 16px; color: #4b5563; }
       .filter { margin-bottom: 16px; width: 200px; }
       .logs-table {
         width: 100%;
         background: rgba(247, 248, 252, 0.96);
         border-radius: 18px;
         overflow: hidden;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
       }
       th, td { padding: 10px 16px; }
       th { color: #334155; font-weight: 700; }

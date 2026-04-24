@@ -59,8 +59,8 @@ import { CommonModule } from '@angular/common';
   `,
   styles: [
     `
-      h1 { margin: 0 0 4px; color: #f9fafb; }
-      .sub { margin: 0 0 20px; color: #cbd5e1; }
+      h1 { margin: 0 0 4px; color: #111827; }
+      .sub { margin: 0 0 20px; color: #4b5563; }
       .loading { padding: 48px; display: flex; justify-content: center; }
       .stats-grid {
         display: grid;
