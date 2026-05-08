@@ -264,14 +264,32 @@ export class HomeComponent implements OnInit, OnDestroy {
       return;
     }
     try {
-      this.localStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: false
-        }
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: false
+          }
+        });
+      } catch (videoErr) {
+        // Fallback for devices without camera: still allow audio-only matching.
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: false
+          }
+        });
+        this.snackBar.open('Không phát hiện camera, đã chuyển sang chế độ chỉ micro.', 'Đóng', { duration: 3500 });
+        console.warn('Video unavailable, fallback to audio-only mode:', videoErr);
+      }
+
+      this.localStream = stream;
+      this.isCameraOff = this.localStream.getVideoTracks().length === 0;
       await this.loadIceServers();
       this.attachLocalStream();
       this.startMicVisualizer();
@@ -279,11 +297,32 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.matching.joinQueue(this.filterForm.value);
     } catch (err) {
       console.error('getUserMedia failed:', err);
-      this.snackBar.open(
-        'Không thể truy cập camera/micro. Kiểm tra quyền trình duyệt hoặc thử mở qua https:// hoặc localhost.',
-        'Đóng',
-        { duration: 5000 }
-      );
+      const mediaErrName = (err as DOMException | undefined)?.name || '';
+      const canFallbackToNoMedia =
+        mediaErrName === 'NotAllowedError' ||
+        mediaErrName === 'NotFoundError' ||
+        mediaErrName === 'NotReadableError' ||
+        mediaErrName === 'OverconstrainedError';
+
+      if (!canFallbackToNoMedia) {
+        this.snackBar.open(
+          'Không thể truy cập camera/micro. Kiểm tra quyền trình duyệt hoặc thử mở qua https:// hoặc localhost.',
+          'Đóng',
+          { duration: 5000 }
+        );
+        return;
+      }
+
+      // Allow users to join even when camera/mic permission is denied.
+      this.localStream = new MediaStream();
+      this.isCameraOff = true;
+      this.isMicMuted = true;
+      await this.loadIceServers();
+      this.attachLocalStream();
+      this.startMicVisualizer();
+      this.matchingStatus = MatchingStatus.SEARCHING;
+      this.matching.joinQueue(this.filterForm.value);
+      this.snackBar.open('Bạn đang ở chế độ chỉ nhận (không camera/micro).', 'Đóng', { duration: 3800 });
     }
   }
 
@@ -698,12 +737,24 @@ export class HomeComponent implements OnInit, OnDestroy {
       console.log('iceGatheringState:', this.peerConnection?.iceGatheringState);
     };
     this.videoSender = null;
+    let hasAudioTrack = false;
+    let hasVideoTrack = false;
     this.localStream?.getTracks().forEach((t) => {
       const sender = this.peerConnection!.addTrack(t, this.localStream!);
+      if (t.kind === 'audio') {
+        hasAudioTrack = true;
+      }
       if (t.kind === 'video') {
+        hasVideoTrack = true;
         this.videoSender = sender;
       }
     });
+    if (!hasAudioTrack) {
+      this.peerConnection.addTransceiver('audio', { direction: 'recvonly' });
+    }
+    if (!hasVideoTrack) {
+      this.peerConnection.addTransceiver('video', { direction: 'recvonly' });
+    }
 
     this.peerConnection.ontrack = (e) => {
       setTimeout(() => {
