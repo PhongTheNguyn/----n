@@ -3,6 +3,21 @@ const jwt = require('jsonwebtoken');
 const { prisma } = require('../config/db');
 const { createSystemLog } = require('./adminController');
 
+function formatRemainingDuration(remainingMs) {
+  const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000));
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const parts = [];
+  if (days > 0) parts.push(`${days} ngày`);
+  if (hours > 0) parts.push(`${hours} giờ`);
+  if (minutes > 0) parts.push(`${minutes} phút`);
+  parts.push(`${seconds} giây`);
+  return parts.join(' ');
+}
+
 async function register(req, res) {
   try {
     const { fullName, email, password, confirmPassword, gender, country, age, agreeTerms } = req.body;
@@ -98,8 +113,22 @@ async function login(req, res) {
 
     const now = new Date();
     if (user.isBanned) {
-      if (user.bannedUntil == null || new Date(user.bannedUntil) > now) {
-        return res.status(403).json({ error: 'Tài khoản đã bị khóa' });
+      if (user.bannedUntil == null) {
+        return res.status(403).json({
+          error: 'Bạn đã bị cấm khỏi nền tảng',
+          banType: 'permanent'
+        });
+      }
+
+      const bannedUntil = new Date(user.bannedUntil);
+      if (bannedUntil > now) {
+        const remainingMs = bannedUntil.getTime() - now.getTime();
+        return res.status(403).json({
+          error: `Tài khoản đang bị cảnh cáo. Thời gian còn lại: ${formatRemainingDuration(remainingMs)}`,
+          banType: 'temporary',
+          bannedUntil: bannedUntil.toISOString(),
+          remainingMs
+        });
       }
       await prisma.user.update({
         where: { id: user.id },

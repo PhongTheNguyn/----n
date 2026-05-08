@@ -57,6 +57,9 @@
               <span>Tính phí gọi: {{ paidRateText }}</span>
               <span>1 coin = 10.000đ</span>
             </div>
+            <div class="quota-alert" *ngIf="!canEnterQueue">
+              Bạn đã hết thời gian miễn phí hôm nay và số dư coin hiện tại là 0. Vui lòng nạp coin để tiếp tục ghép cặp.
+            </div>
             <mat-form-field appearance="outline">
               <mat-label>Giới tính</mat-label>
               <mat-select formControlName="gender">
@@ -90,7 +93,7 @@
               </mat-select>
             </mat-form-field>
 
-            <button mat-raised-button color="primary" class="start-button" (click)="startMatching()" [disabled]="isSearching">
+            <button mat-raised-button color="primary" class="start-button" (click)="startMatching()" [disabled]="isSearching || !canEnterQueue">
               <i class="fi fi-rr-video-camera"></i>
               Bắt đầu ghép
             </button>

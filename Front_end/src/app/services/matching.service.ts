@@ -172,30 +172,33 @@ export class MatchingService {
     return this.peerChatMessage$.asObservable();
   }
 
-  onOffer(): Observable<{ offer: RTCSessionDescriptionInit; from: string }> {
+  onOffer(): Observable<{ roomId?: string; offer: RTCSessionDescriptionInit; from: string }> {
     return new Observable((sub) => {
-      this.socket?.on('offer', (data: { offer: RTCSessionDescriptionInit; from: string }) => {
+      const handler = (data: { roomId?: string; offer: RTCSessionDescriptionInit; from: string }) => {
         sub.next(data);
-      });
-      return () => this.socket?.off('offer');
+      };
+      this.socket?.on('offer', handler);
+      return () => this.socket?.off('offer', handler);
     });
   }
 
-  onAnswer(): Observable<{ answer: RTCSessionDescriptionInit; from: string }> {
+  onAnswer(): Observable<{ roomId?: string; answer: RTCSessionDescriptionInit; from: string }> {
     return new Observable((sub) => {
-      this.socket?.on('answer', (data: { answer: RTCSessionDescriptionInit; from: string }) => {
+      const handler = (data: { roomId?: string; answer: RTCSessionDescriptionInit; from: string }) => {
         sub.next(data);
-      });
-      return () => this.socket?.off('answer');
+      };
+      this.socket?.on('answer', handler);
+      return () => this.socket?.off('answer', handler);
     });
   }
 
-  onIceCandidate(): Observable<{ candidate: RTCIceCandidateInit; from: string }> {
+  onIceCandidate(): Observable<{ roomId?: string; candidate: RTCIceCandidateInit; from: string }> {
     return new Observable((sub) => {
-      this.socket?.on('ice-candidate', (data: { candidate: RTCIceCandidateInit; from: string }) => {
+      const handler = (data: { roomId?: string; candidate: RTCIceCandidateInit; from: string }) => {
         sub.next(data);
-      });
-      return () => this.socket?.off('ice-candidate');
+      };
+      this.socket?.on('ice-candidate', handler);
+      return () => this.socket?.off('ice-candidate', handler);
     });
   }
 }

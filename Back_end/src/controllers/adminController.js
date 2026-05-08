@@ -139,10 +139,11 @@ async function updateReport(req, res) {
     const now = new Date();
     let banUntil = null;
     let isBanned = false;
+    const shouldApplyTemporaryBan = action === 'warn' || action === 'ban_temp';
 
-    if (action === 'ban_temp') {
+    if (shouldApplyTemporaryBan) {
       const config = await loadAdminConfig();
-      const days = config.tempBanDays || 7;
+      const days = Number(config.tempBanDays) || 7;
       banUntil = new Date();
       banUntil.setDate(banUntil.getDate() + days);
       isBanned = true;
@@ -161,13 +162,32 @@ async function updateReport(req, res) {
         }
       });
 
-      if (action === 'ban_temp' || action === 'ban_permanent') {
+      if (action === 'warn' || action === 'ban_temp' || action === 'ban_permanent') {
         await tx.user.update({
           where: { id: report.reported_id },
           data: { isBanned: true, bannedUntil: banUntil }
         });
       }
     });
+
+    if (action === 'warn' || action === 'ban_temp' || action === 'ban_permanent') {
+      const enforceBan = req.app.get('enforceBanOnUser');
+      if (typeof enforceBan === 'function') {
+        const payload =
+          action === 'ban_permanent'
+            ? {
+                banType: 'permanent',
+                message: 'Bạn đã bị cấm khỏi nền tảng'
+              }
+            : {
+                banType: 'temporary',
+                message: 'Tài khoản đang bị cảnh cáo',
+                bannedUntil: banUntil ? banUntil.toISOString() : null,
+                remainingMs: banUntil ? Math.max(0, banUntil.getTime() - Date.now()) : 0
+              };
+        enforceBan(report.reported_id, payload);
+      }
+    }
 
     await createSystemLog({
       action: 'report_action',
@@ -176,7 +196,17 @@ async function updateReport(req, res) {
       details: JSON.stringify({ reportId: id, action })
     });
 
-    res.json({ message: 'Đã xử lý báo cáo' });
+    if (action === 'warn') {
+      return res.json({ message: 'Đã cảnh cáo và khóa tài khoản theo thời gian cấu hình' });
+    }
+    if (action === 'ban_temp') {
+      return res.json({ message: 'Đã khóa tài khoản tạm thời' });
+    }
+    if (action === 'ban_permanent') {
+      return res.json({ message: 'Đã khóa tài khoản vĩnh viễn' });
+    }
+
+    return res.json({ message: 'Đã xử lý báo cáo' });
   } catch (err) {
     console.error('updateReport error:', err);
     res.status(500).json({ error: 'Lỗi server' });

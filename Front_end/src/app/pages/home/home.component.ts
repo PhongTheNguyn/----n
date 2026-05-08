@@ -78,6 +78,8 @@ export class HomeComponent implements OnInit, OnDestroy {
   private originalBodyOverflow = '';
   private originalHtmlOverflow = '';
   private subs: Subscription[] = [];
+  private signalingSubs: Subscription[] = [];
+  private pendingRemoteIceCandidates: RTCIceCandidateInit[] = [];
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private micSource: MediaStreamAudioSourceNode | null = null;
@@ -236,6 +238,14 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   async startMatching() {
     if (this.matchingStatus === MatchingStatus.SEARCHING) return;
+    if (!this.canEnterQueue) {
+      this.snackBar.open(
+        'Bạn đã hết thời gian miễn phí và không đủ coin. Vui lòng nạp coin để tiếp tục.',
+        'Đóng',
+        { duration: 4500 }
+      );
+      return;
+    }
     const filterCost = this.selectedFilterCost;
     if (filterCost > 0 && this.currentCoinBalance < filterCost) {
       this.snackBar.open(
@@ -262,6 +272,7 @@ export class HomeComponent implements OnInit, OnDestroy {
           autoGainControl: false
         }
       });
+      await this.loadIceServers();
       this.attachLocalStream();
       this.startMicVisualizer();
       this.matchingStatus = MatchingStatus.SEARCHING;
@@ -273,6 +284,28 @@ export class HomeComponent implements OnInit, OnDestroy {
         'Đóng',
         { duration: 5000 }
       );
+    }
+  }
+
+  private async loadIceServers() {
+    const token = this.auth.getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${getApiUrl()}/api/webrtc/turn-credentials`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.iceServers?.length) {
+          this.config.iceServers = data.iceServers;
+        }
+      } else {
+        const body = await res.text().catch(() => '');
+        console.warn('TURN credentials fetch failed:', res.status, body);
+      }
+    } catch (e) {
+      console.warn('TURN fetch error:', e);
     }
   }
 
@@ -517,6 +550,11 @@ export class HomeComponent implements OnInit, OnDestroy {
     return `${this.billingSummary.coinsPerCallBlock} coin / ${blockMinutes} phút`;
   }
 
+  get canEnterQueue(): boolean {
+    const freeSeconds = this.billingSummary?.freeCallSecondsRemainingToday ?? 0;
+    return freeSeconds > 0 || this.currentCoinBalance > 0;
+  }
+
   onAccountMenuOpened() {
     this.refreshBillingSummary();
     this.loadTransactions();
@@ -642,30 +680,23 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   private async setupPeerConnection() {
-    const token = this.auth.getToken();
-
-    if (token) {
-      try {
-        const res = await fetch(`${getApiUrl()}/api/webrtc/turn-credentials`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.iceServers?.length) {
-            this.config.iceServers = data.iceServers; // lấy TURN/STUN từ Metered
-          }
-        } else {
-          const body = await res.text().catch(() => '');
-          console.warn('TURN credentials fetch failed:', res.status, body);
-        }
-      } catch (e) {
-        console.warn('TURN fetch error:', e);
-      }
-    }
+    this.clearSignalingSubs();
+    this.pendingRemoteIceCandidates = [];
     this.peerConnection = new RTCPeerConnection(this.config);
-    this.peerConnection.onconnectionstatechange = () => this.updateNetworkQuality();
-    this.peerConnection.oniceconnectionstatechange = () => this.updateNetworkQuality();
+    this.peerConnection.onconnectionstatechange = () => {
+      console.log('connectionState:', this.peerConnection?.connectionState);
+      this.updateNetworkQuality();
+    };
+    this.peerConnection.oniceconnectionstatechange = () => {
+      console.log('iceConnectionState:', this.peerConnection?.iceConnectionState);
+      this.updateNetworkQuality();
+    };
+    this.peerConnection.onsignalingstatechange = () => {
+      console.log('signalingState:', this.peerConnection?.signalingState);
+    };
+    this.peerConnection.onicegatheringstatechange = () => {
+      console.log('iceGatheringState:', this.peerConnection?.iceGatheringState);
+    };
     this.videoSender = null;
     this.localStream?.getTracks().forEach((t) => {
       const sender = this.peerConnection!.addTrack(t, this.localStream!);
@@ -692,21 +723,33 @@ export class HomeComponent implements OnInit, OnDestroy {
       }
     };
 
-    this.subs.push(
+    this.signalingSubs.push(
       this.matching.onOffer().subscribe(async (data) => {
         if (!this.roomId || !this.peerConnection) return;
+        if (data.roomId && data.roomId !== this.roomId) return;
         await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+        await this.flushPendingIceCandidates();
         const answer = await this.peerConnection.createAnswer();
         await this.peerConnection.setLocalDescription(answer);
         this.matching.sendAnswer(this.roomId, answer);
       }),
       this.matching.onAnswer().subscribe(async (data) => {
         if (!this.peerConnection) return;
-        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+        if (this.roomId && data.roomId && data.roomId !== this.roomId) return;
+        if (this.peerConnection.signalingState !== 'have-local-offer') {
+          return;
+        }
+        try {
+          await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+          await this.flushPendingIceCandidates();
+        } catch (err) {
+          console.warn('Ignore invalid answer SDP state:', err);
+        }
       }),
       this.matching.onIceCandidate().subscribe(async (data) => {
         if (!this.peerConnection) return;
-        await this.peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        if (this.roomId && data.roomId && data.roomId !== this.roomId) return;
+        await this.addRemoteIceCandidateSafe(data.candidate);
       })
     );
 
@@ -787,6 +830,8 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   private resetPeerState() {
+    this.clearSignalingSubs();
+    this.pendingRemoteIceCandidates = [];
     if (this.peerIntroTimeout) {
       clearTimeout(this.peerIntroTimeout);
       this.peerIntroTimeout = null;
@@ -812,6 +857,43 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.peerUserId = null;
     const rv = this.remoteVideoRef?.nativeElement;
     if (rv) rv.srcObject = null;
+  }
+
+  private clearSignalingSubs() {
+    this.signalingSubs.forEach((s) => s.unsubscribe());
+    this.signalingSubs = [];
+  }
+
+  private async addRemoteIceCandidateSafe(candidate: RTCIceCandidateInit) {
+    if (!this.peerConnection) return;
+    if (!candidate) return;
+
+    // ICE can arrive before remote description; queue to avoid InvalidStateError.
+    if (!this.peerConnection.remoteDescription) {
+      this.pendingRemoteIceCandidates.push(candidate);
+      return;
+    }
+
+    try {
+      await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (err) {
+      console.warn('Ignore invalid ICE candidate:', err);
+    }
+  }
+
+  private async flushPendingIceCandidates() {
+    if (!this.peerConnection?.remoteDescription) return;
+    if (!this.pendingRemoteIceCandidates.length) return;
+
+    const queued = [...this.pendingRemoteIceCandidates];
+    this.pendingRemoteIceCandidates = [];
+    for (const candidate of queued) {
+      try {
+        await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.warn('Ignore queued ICE candidate error:', err);
+      }
+    }
   }
 
   private cleanup() {

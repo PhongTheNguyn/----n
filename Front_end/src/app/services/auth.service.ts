@@ -6,6 +6,7 @@ import { getApiUrl } from '../core/api-config';
 
 const TOKEN_KEY = 'video_call_token';
 const USER_KEY = 'video_call_user';
+const BAN_NOTICE_KEY = 'video_call_ban_notice';
 
 export interface User {
   id: string;
@@ -23,6 +24,13 @@ export interface User {
 export interface AuthResponse {
   token: string;
   user: User;
+}
+
+export interface BanNotice {
+  banType: 'temporary' | 'permanent';
+  message: string;
+  bannedUntil?: string | null;
+  remainingMs?: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -67,6 +75,21 @@ export class AuthService {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     this.router.navigate(['/login']);
+  }
+
+  setBanNotice(notice: BanNotice): void {
+    sessionStorage.setItem(BAN_NOTICE_KEY, JSON.stringify(notice));
+  }
+
+  consumeBanNotice(): BanNotice | null {
+    const raw = sessionStorage.getItem(BAN_NOTICE_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(BAN_NOTICE_KEY);
+    try {
+      return JSON.parse(raw) as BanNotice;
+    } catch {
+      return null;
+    }
   }
 
   getToken(): string | null {

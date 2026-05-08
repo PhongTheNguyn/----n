@@ -6,6 +6,13 @@
     </div>
 
     <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="login-form">
+      <div *ngIf="banType" class="ban-notice" [class.ban-notice--permanent]="banType === 'permanent'">
+        <div class="ban-notice__title">{{ banMessage }}</div>
+        <div class="ban-notice__countdown" *ngIf="banType === 'temporary' && banCountdownText">
+          Thời gian còn lại: {{ banCountdownText }}
+        </div>
+      </div>
+
       <mat-form-field appearance="outline">
         <mat-label>Email</mat-label>
         <input matInput type="email" formControlName="email" placeholder="example@email.com">

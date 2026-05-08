@@ -44,6 +44,29 @@
   gap: 20px;
 }
 
+.ban-notice {
+  border: 1px solid #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.ban-notice--permanent {
+  border-color: #ef4444;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.ban-notice__title {
+  font-weight: 700;
+}
+
+.ban-notice__countdown {
+  margin-top: 6px;
+  font-weight: 600;
+}
+
 .form-actions {
   display: flex;
   flex-direction: column;

@@ -35,6 +35,35 @@ if (corsOrigins.length === 0) corsOrigins.push('http://localhost:4200');
 const io = new Server(server, {
   cors: { origin: corsOrigins }
 });
+const userSocketMap = new Map(); // userId -> Set<socketId>
+
+function registerUserSocket(userId, socketId) {
+  if (!userId || !socketId) return;
+  if (!userSocketMap.has(userId)) {
+    userSocketMap.set(userId, new Set());
+  }
+  userSocketMap.get(userId).add(socketId);
+}
+
+function unregisterUserSocket(userId, socketId) {
+  if (!userId || !socketId) return;
+  const set = userSocketMap.get(userId);
+  if (!set) return;
+  set.delete(socketId);
+  if (set.size === 0) {
+    userSocketMap.delete(userId);
+  }
+}
+
+function enforceBanOnUser(userId, payload) {
+  const set = userSocketMap.get(userId);
+  if (!set || set.size === 0) return;
+  for (const socketId of set) {
+    io.to(socketId).emit('account-banned', payload);
+    io.sockets.sockets.get(socketId)?.disconnect(true);
+  }
+  userSocketMap.delete(userId);
+}
 
 const uploadDir = process.env.UPLOAD_DIR || './uploads';
 if (!fs.existsSync(uploadDir)) {
@@ -44,6 +73,8 @@ if (!fs.existsSync(uploadDir)) {
 app.use(cors({ origin: corsOrigins, credentials: true }));
 app.use(express.json());
 app.use('/uploads', express.static(path.resolve(uploadDir)));
+app.set('io', io);
+app.set('enforceBanOnUser', enforceBanOnUser);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
@@ -75,6 +106,8 @@ io.use((socket, next) => {
 });
 
 io.on('connection', (socket) => {
+  registerUserSocket(socket.userId, socket.id);
+
   socket.on('join-queue', async (filters) => {
     const requestedGender = normalizeFilterValue(filters?.gender);
     const requestedCountry = normalizeFilterValue(filters?.country);
@@ -247,15 +280,15 @@ io.on('connection', (socket) => {
   });
 
   socket.on('offer', ({ roomId, offer }) => {
-    socket.to(roomId).emit('offer', { offer, from: socket.id });
+    socket.to(roomId).emit('offer', { roomId, offer, from: socket.id });
   });
 
   socket.on('answer', ({ roomId, answer }) => {
-    socket.to(roomId).emit('answer', { answer, from: socket.id });
+    socket.to(roomId).emit('answer', { roomId, answer, from: socket.id });
   });
 
   socket.on('ice-candidate', ({ roomId, candidate }) => {
-    socket.to(roomId).emit('ice-candidate', { candidate, from: socket.id });
+    socket.to(roomId).emit('ice-candidate', { roomId, candidate, from: socket.id });
   });
 
   socket.on('camera-state', ({ roomId, isCameraOff }) => {
@@ -319,6 +352,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    unregisterUserSocket(socket.userId, socket.id);
     const idx = queue.findIndex((q) => q.socketId === socket.id);
     if (idx >= 0) queue.splice(idx, 1);
     rooms.forEach((r, roomId) => {

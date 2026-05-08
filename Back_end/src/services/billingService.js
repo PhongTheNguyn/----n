@@ -4,6 +4,8 @@ const FREE_CALL_SECONDS_PER_DAY = 10 * 60;
 const CALL_BILLING_BLOCK_SECONDS = 10 * 60;
 const COINS_PER_CALL_BLOCK = 1;
 const COIN_VND_VALUE = 10000;
+const PRISMA_TX_MAX_WAIT_MS = Number(process.env.PRISMA_TX_MAX_WAIT_MS || 10000);
+const PRISMA_TX_TIMEOUT_MS = Number(process.env.PRISMA_TX_TIMEOUT_MS || 15000);
 
 function startOfDay(date = new Date()) {
   const d = new Date(date);
@@ -143,6 +145,9 @@ async function chargeFilterCoins(userId, filters) {
     });
 
     return { chargedCoins: filterCost, filterCost, coinBalance: updated.coinBalance };
+  }, {
+    maxWait: PRISMA_TX_MAX_WAIT_MS,
+    timeout: PRISMA_TX_TIMEOUT_MS
   });
 }
 
@@ -219,6 +224,9 @@ async function chargeCallDuration(userId, durationSeconds, metadata = {}) {
       durationSeconds: safeDuration,
       coinBalance
     };
+  }, {
+    maxWait: PRISMA_TX_MAX_WAIT_MS,
+    timeout: PRISMA_TX_TIMEOUT_MS
   });
 }
 

@@ -174,8 +174,8 @@ export class AdminReportsComponent implements OnInit {
 
   action(id: string, action: string) {
     this.admin.updateReport(id, action).subscribe({
-      next: () => {
-        this.snackBar.open('Đã xử lý', 'Đóng', { duration: 2000 });
+      next: (res) => {
+        this.snackBar.open(res?.message || 'Đã xử lý', 'Đóng', { duration: 2500 });
         this.load();
       },
       error: (err) => {

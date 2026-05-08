@@ -20,14 +20,45 @@ function setCachedTurnPayload(payload) {
   };
 }
 
+function pickEnv(...keys) {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (value != null && String(value).trim() !== '') {
+      return String(value).trim();
+    }
+  }
+  return '';
+}
+
 async function getTurnCredentials(req, res) {
-    const fallbackIceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+    const fallbackIceServers = [{ urls: pickEnv('STUN_URL', 'STUN_SERVER_URL') || 'stun:stun.l.google.com:19302' }];
     try {
-      const { METERED_TURN_APP, METERED_API_KEY, METERED_REGION } = process.env;
+      const meteredTurnApp = pickEnv('METERED_TURN_APP', 'METERED_APP_NAME', 'METERED_APP', 'TURN_APP');
+      const meteredApiKey = pickEnv('METERED_API_KEY', 'METERED_KEY', 'TURN_API_KEY');
+      const meteredRegion = pickEnv('METERED_REGION', 'TURN_REGION');
+
+      const staticTurnUrl = pickEnv('TURN_URL', 'TURN_SERVER_URL');
+      const staticTurnUsername = pickEnv('TURN_USERNAME', 'TURN_USER');
+      const staticTurnCredential = pickEnv('TURN_CREDENTIAL', 'TURN_PASSWORD');
+
+      if (staticTurnUrl && staticTurnUsername && staticTurnCredential) {
+        const payload = {
+          iceServers: [
+            ...fallbackIceServers,
+            {
+              urls: staticTurnUrl,
+              username: staticTurnUsername,
+              credential: staticTurnCredential
+            }
+          ]
+        };
+        setCachedTurnPayload(payload);
+        return res.json(payload);
+      }
   
-      if (!METERED_TURN_APP || !METERED_API_KEY) {
+      if (!meteredTurnApp || !meteredApiKey) {
         if (!hasWarnedMissingTurnEnv) {
-          console.warn('Metered TURN env not configured, fallback to STUN');
+          console.warn('TURN env not configured (checked Metered + static TURN keys), fallback to STUN');
           hasWarnedMissingTurnEnv = true;
         }
         return res.json({ iceServers: fallbackIceServers, fallback: true });
@@ -38,9 +69,9 @@ async function getTurnCredentials(req, res) {
         return res.json(cached);
       }
   
-      const url = new URL(`https://${METERED_TURN_APP}.metered.live/api/v1/turn/credentials`);
-      url.searchParams.set('apiKey', METERED_API_KEY);
-      if (METERED_REGION) url.searchParams.set('region', METERED_REGION);
+      const url = new URL(`https://${meteredTurnApp}.metered.live/api/v1/turn/credentials`);
+      url.searchParams.set('apiKey', meteredApiKey);
+      if (meteredRegion) url.searchParams.set('region', meteredRegion);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), TURN_FETCH_TIMEOUT_MS);
