@@ -10,7 +10,31 @@ export interface DashboardStats {
   totalReports: number;
   totalSessions: number;
   pendingReports: number;
+  paidTransactions: number;
+  paidRevenueVnd: number;
+  paymentChart: PaymentChartPoint[];
+  paymentRange?: { from: string; to: string };
   onlineCount: number;
+}
+
+export interface PaymentChartPoint {
+  date: string;
+  amountVnd: number;
+  transactionCount: number;
+}
+
+export interface AdminUserItem {
+  id: string;
+  email: string;
+  displayName: string;
+  gender: string;
+  country: string;
+  age: number;
+  role: string;
+  coinBalance: number;
+  isBanned: boolean;
+  bannedUntil?: string | null;
+  createdAt: string;
 }
 
 export interface ReportItem {
@@ -86,8 +110,36 @@ export class AdminService {
     return t ? { Authorization: `Bearer ${t}` } : {};
   }
 
-  getDashboardStats(): Observable<DashboardStats> {
+  getDashboardStats(filters?: { from?: string; to?: string }): Observable<DashboardStats> {
+    let params = new HttpParams();
+    if (filters?.from) params = params.set('from', filters.from);
+    if (filters?.to) params = params.set('to', filters.to);
     return this.http.get<DashboardStats>(`${this.apiUrl}/api/admin/dashboard`, {
+      headers: this.headers(),
+      params
+    });
+  }
+
+  getUsers(
+    filters: { q?: string; role?: string; status?: string },
+    page = 1,
+    limit = 20
+  ): Observable<{ users: AdminUserItem[]; total: number }> {
+    let params = new HttpParams().set('page', String(page)).set('limit', String(limit));
+    if (filters.q) params = params.set('q', filters.q);
+    if (filters.role) params = params.set('role', filters.role);
+    if (filters.status) params = params.set('status', filters.status);
+    return this.http.get<{ users: AdminUserItem[]; total: number }>(`${this.apiUrl}/api/admin/users`, {
+      headers: this.headers(),
+      params
+    });
+  }
+
+  updateUser(
+    id: string,
+    data: { isBanned?: boolean; bannedUntil?: string | null; role?: string }
+  ): Observable<{ message: string; user: AdminUserItem }> {
+    return this.http.patch<{ message: string; user: AdminUserItem }>(`${this.apiUrl}/api/admin/users/${id}`, data, {
       headers: this.headers()
     });
   }

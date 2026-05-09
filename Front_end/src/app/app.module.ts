@@ -38,6 +38,7 @@ import { AdminSessionsComponent } from './pages/admin/admin-sessions.component';
 import { AdminLogsComponent } from './pages/admin/admin-logs.component';
 import { AdminConfigComponent } from './pages/admin/admin-config.component';
 import { AdminPaymentsComponent } from './pages/admin/admin-payments.component';
+import { AdminUsersComponent } from './pages/admin/admin-users.component';
 import { CountryFlagUrlPipe } from './pipes/country-flag-url.pipe';
 
 @NgModule({
@@ -68,6 +69,7 @@ import { CountryFlagUrlPipe } from './pipes/country-flag-url.pipe';
         canActivate: [AdminGuard],
         children: [
           { path: '', component: AdminDashboardComponent },
+          { path: 'users', component: AdminUsersComponent },
           { path: 'reports', component: AdminReportsComponent },
           { path: 'sessions', component: AdminSessionsComponent },
           { path: 'payments', component: AdminPaymentsComponent },
@@ -95,6 +97,7 @@ import { CountryFlagUrlPipe } from './pipes/country-flag-url.pipe';
     MatPaginatorModule,
     AdminLayoutComponent,
     AdminDashboardComponent,
+    AdminUsersComponent,
     AdminReportsComponent,
     AdminSessionsComponent,
     AdminPaymentsComponent,

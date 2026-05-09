@@ -3,6 +3,8 @@ const { authMiddleware } = require('../middleware/auth');
 const { adminMiddleware } = require('../middleware/adminAuth');
 const {
   getDashboardStats,
+  getUsers,
+  updateUser,
   getReports,
   getReportDetail,
   updateReport,
@@ -20,6 +22,8 @@ router.use(authMiddleware);
 router.use(adminMiddleware);
 
 router.get('/dashboard', getDashboardStats);
+router.get('/users', getUsers);
+router.patch('/users/:id', updateUser);
 router.get('/reports', getReports);
 router.get('/reports/:id', getReportDetail);
 router.patch('/reports/:id', updateReport);

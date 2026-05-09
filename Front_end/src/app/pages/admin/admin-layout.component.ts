@@ -45,6 +45,10 @@ import { AuthService } from '../../services/auth.service';
             <i matListItemIcon class="fi fi-rr-apps"></i>
             <span matListItemTitle>Dashboard</span>
           </a>
+          <a mat-list-item routerLink="/admin/users" routerLinkActive="active">
+            <i matListItemIcon class="fi fi-rr-users"></i>
+            <span matListItemTitle>Người dùng</span>
+          </a>
           <a mat-list-item routerLink="/admin/reports" routerLinkActive="active">
             <i matListItemIcon class="fi fi-rr-flag"></i>
             <span matListItemTitle>Báo cáo</span>

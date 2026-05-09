@@ -15,9 +15,101 @@ const DEFAULT_CONFIG = {
   tempBanDays: 7
 };
 
+function startOfDay(date = new Date()) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDay(date = new Date()) {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function formatDateKey(date) {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getDashboardPaymentRange(query = {}) {
+  const today = startOfDay();
+  const defaultStart = new Date(today);
+  defaultStart.setDate(today.getDate() - 6);
+
+  const parsedFrom = query.from ? new Date(String(query.from)) : null;
+  const parsedTo = query.to ? new Date(String(query.to)) : null;
+
+  let from = parsedFrom && !Number.isNaN(parsedFrom.getTime()) ? startOfDay(parsedFrom) : defaultStart;
+  let to = parsedTo && !Number.isNaN(parsedTo.getTime()) ? endOfDay(parsedTo) : endOfDay(today);
+
+  if (from > to) {
+    const temp = from;
+    from = startOfDay(to);
+    to = endOfDay(temp);
+  }
+
+  const maxRangeDays = 31;
+  const diffDays = Math.floor((startOfDay(to).getTime() - from.getTime()) / 86400000) + 1;
+  if (diffDays > maxRangeDays) {
+    from = new Date(startOfDay(to));
+    from.setDate(from.getDate() - (maxRangeDays - 1));
+  }
+
+  return { from, to };
+}
+
+function buildDailyPaymentChart(zaloPayments = [], momoPayments = [], from, to) {
+  const buckets = [];
+  const bucketMap = new Map();
+
+  for (const date = new Date(from); date <= to; date.setDate(date.getDate() + 1)) {
+    const key = formatDateKey(date);
+    const item = { date: key, amountVnd: 0, transactionCount: 0 };
+    buckets.push(item);
+    bucketMap.set(key, item);
+  }
+
+  for (const payment of [...zaloPayments, ...momoPayments]) {
+    const paidDate = payment.paid_at || payment.created_at;
+    if (!paidDate) continue;
+    const key = formatDateKey(paidDate);
+    const bucket = bucketMap.get(key);
+    if (!bucket) continue;
+    bucket.amountVnd += Number(payment.amount_vnd || 0);
+    bucket.transactionCount += 1;
+  }
+
+  return buckets;
+}
+
 async function getDashboardStats(req, res) {
   try {
-    const [totalUsers, reportsToday, totalReports, totalSessions, pendingReports] = await Promise.all([
+    const paymentRange = getDashboardPaymentRange(req.query);
+    const paidWhere = {
+      status: 'paid',
+      paid_at: {
+        gte: paymentRange.from,
+        lte: paymentRange.to
+      }
+    };
+
+    const [
+      totalUsers,
+      reportsToday,
+      totalReports,
+      totalSessions,
+      pendingReports,
+      zaloPaidCount,
+      zaloPaidTotal,
+      zaloChartPayments,
+      momoPaidCount,
+      momoPaidTotal,
+      momoChartPayments
+    ] = await Promise.all([
       prisma.user.count(),
       prisma.user_reports.count({
         where: {
@@ -26,7 +118,25 @@ async function getDashboardStats(req, res) {
       }),
       prisma.user_reports.count(),
       prisma.call_sessions.count(),
-      prisma.user_reports.count({ where: { status: 'pending' } })
+      prisma.user_reports.count({ where: { status: 'pending' } }),
+      prisma.zalopay_payments.count({ where: paidWhere }),
+      prisma.zalopay_payments.aggregate({
+        where: paidWhere,
+        _sum: { amount_vnd: true }
+      }),
+      prisma.zalopay_payments.findMany({
+        where: paidWhere,
+        select: { amount_vnd: true, paid_at: true, created_at: true }
+      }),
+      prisma.momo_payments.count({ where: paidWhere }),
+      prisma.momo_payments.aggregate({
+        where: paidWhere,
+        _sum: { amount_vnd: true }
+      }),
+      prisma.momo_payments.findMany({
+        where: paidWhere,
+        select: { amount_vnd: true, paid_at: true, created_at: true }
+      })
     ]);
 
     res.json({
@@ -35,10 +145,125 @@ async function getDashboardStats(req, res) {
       totalReports,
       totalSessions,
       pendingReports,
+      paidTransactions: zaloPaidCount + momoPaidCount,
+      paidRevenueVnd: Number(zaloPaidTotal._sum.amount_vnd || 0) + Number(momoPaidTotal._sum.amount_vnd || 0),
+      paymentChart: buildDailyPaymentChart(zaloChartPayments, momoChartPayments, paymentRange.from, paymentRange.to),
+      paymentRange: {
+        from: formatDateKey(paymentRange.from),
+        to: formatDateKey(paymentRange.to)
+      },
       onlineCount: 0
     });
   } catch (err) {
     console.error('getDashboardStats error:', err);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+}
+
+async function getUsers(req, res) {
+  try {
+    const { page = 1, limit = 20, q, role, status } = req.query;
+    const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+    const take = parseInt(limit, 10);
+    const where = {};
+
+    if (q) {
+      const keyword = String(q).trim();
+      where.OR = [
+        { email: { contains: keyword, mode: 'insensitive' } },
+        { displayName: { contains: keyword, mode: 'insensitive' } },
+        { id: { contains: keyword, mode: 'insensitive' } }
+      ];
+    }
+    if (role) where.role = String(role);
+    if (status === 'banned') where.isBanned = true;
+    if (status === 'active') where.isBanned = false;
+
+    const [items, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          gender: true,
+          country: true,
+          age: true,
+          role: true,
+          coinBalance: true,
+          isBanned: true,
+          bannedUntil: true,
+          createdAt: true
+        }
+      }),
+      prisma.user.count({ where })
+    ]);
+
+    res.json({ users: items, total });
+  } catch (err) {
+    console.error('getUsers error:', err);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+}
+
+async function updateUser(req, res) {
+  try {
+    const { id } = req.params;
+    const { isBanned, bannedUntil, role } = req.body;
+    const data = {};
+
+    if (isBanned !== undefined) {
+      data.isBanned = Boolean(isBanned);
+      data.bannedUntil = data.isBanned && bannedUntil ? new Date(bannedUntil) : null;
+    }
+    if (role !== undefined) {
+      if (!['user', 'admin'].includes(role)) {
+        return res.status(400).json({ error: 'Role không hợp lệ' });
+      }
+      data.role = role;
+    }
+
+    if (!Object.keys(data).length) {
+      return res.status(400).json({ error: 'Không có dữ liệu cập nhật' });
+    }
+
+    const user = await prisma.user.update({
+      where: { id },
+      data,
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        role: true,
+        coinBalance: true,
+        isBanned: true,
+        bannedUntil: true,
+        createdAt: true
+      }
+    });
+
+    await createSystemLog({
+      action: 'user_update',
+      user_id: req.userId,
+      target_id: id,
+      details: JSON.stringify(data)
+    });
+
+    const enforceBan = req.app.get('enforceBanOnUser');
+    if (typeof enforceBan === 'function' && data.isBanned) {
+      enforceBan(id, {
+        banType: data.bannedUntil ? 'temporary' : 'permanent',
+        message: 'Tài khoản của bạn đã bị khóa bởi quản trị viên',
+        bannedUntil: data.bannedUntil ? data.bannedUntil.toISOString() : null
+      });
+    }
+
+    return res.json({ message: 'Đã cập nhật người dùng', user });
+  } catch (err) {
+    console.error('updateUser error:', err);
     res.status(500).json({ error: 'Lỗi server' });
   }
 }
@@ -467,6 +692,8 @@ async function createSystemLog(data) {
 
 module.exports = {
   getDashboardStats,
+  getUsers,
+  updateUser,
   getReports,
   getReportDetail,
   updateReport,
