@@ -56,6 +56,14 @@ export class ProfileComponent implements OnInit {
     this.loadBlockedList();
     this.profileService.getProfile().subscribe({
       next: (user) => {
+        this.auth.updateStoredUser({
+          displayName: user.displayName,
+          gender: user.gender,
+          country: user.country,
+          age: user.age,
+          bio: user.bio,
+          avatarUrl: user.avatarUrl
+        });
         this.profileForm.patchValue({
           displayName: user.displayName,
           gender: user.gender,
@@ -103,10 +111,15 @@ export class ProfileComponent implements OnInit {
         bio: this.profileForm.value.bio
       };
       this.profileService.updateProfile(data).subscribe({
-        next: () => {
-          if (avatarUrl) {
-            this.auth.updateStoredUser({ avatarUrl });
-          }
+        next: (updatedUser) => {
+          this.auth.updateStoredUser({
+            displayName: updatedUser.displayName,
+            gender: updatedUser.gender,
+            country: updatedUser.country,
+            age: updatedUser.age,
+            bio: updatedUser.bio,
+            avatarUrl: avatarUrl || updatedUser.avatarUrl
+          });
           this.isLoading = false;
           this.snackBar.open('Đã lưu thay đổi thành công!', 'Đóng', { duration: 3000 });
           this.router.navigate(['/home']);
@@ -122,6 +135,7 @@ export class ProfileComponent implements OnInit {
       this.profileService.uploadAvatar(this.selectedFile).subscribe({
         next: (res) => {
           this.avatarPreview = res.avatarUrl;
+          this.auth.updateStoredUser({ avatarUrl: res.avatarUrl });
           this.selectedFile = null;
           doUpdate(res.avatarUrl);
         },
