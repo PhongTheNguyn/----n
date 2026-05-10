@@ -40,6 +40,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   matchingStatus: MatchingStatus = MatchingStatus.IDLE;
   isMicMuted = false;
   isCameraOff = false;
+  isTogglingCamera = false;
   roomId: string | null = null;
   peerUserId: string | null = null;
   peerDisplayName = '';
@@ -91,6 +92,8 @@ export class HomeComponent implements OnInit, OnDestroy {
   private peerMicSource: MediaStreamAudioSourceNode | null = null;
   private peerMicData: Uint8Array | null = null;
   private peerMicAnimFrame: number | null = null;
+  private isHandlingRemoteOffer = false;
+  private lastRemoteOfferSdp: string | null = null;
   private readonly onVisibilityOrPageHidden = () => {
     this.sendCurrentCameraState();
   };
@@ -372,24 +375,35 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   async toggleCamera() {
-    if (!this.localStream) return;
+    if (!this.localStream || this.isTogglingCamera) return;
+    this.isTogglingCamera = true;
 
-    // Turn off camera for real: stop track so hardware LED can go off.
-    if (!this.isCameraOff) {
-      const currentVideoTrack = this.localStream.getVideoTracks()[0];
-      if (currentVideoTrack) {
-        this.localStream.removeTrack(currentVideoTrack);
-        currentVideoTrack.stop();
-      }
-      await this.replaceVideoSenderTrack(null);
-      this.isCameraOff = true;
-      this.attachLocalStream();
-      this.sendCurrentCameraState();
-      return;
-    }
-
-    // Turn camera back on by getting a fresh video track.
     try {
+      // Turn off camera for real: stop track so hardware LED can go off.
+      if (!this.isCameraOff) {
+        const currentVideoTrack = this.localStream.getVideoTracks()[0];
+        if (currentVideoTrack) {
+          this.localStream.removeTrack(currentVideoTrack);
+          currentVideoTrack.stop();
+        }
+        await this.replaceVideoSenderTrack(null);
+        this.isCameraOff = true;
+        this.attachLocalStream();
+        this.sendCurrentCameraState();
+        return;
+      }
+
+      // Turn camera back on by getting a fresh video track.
+      const permissionState = await this.getCameraPermissionState();
+      if (permissionState === 'denied') {
+        this.snackBar.open(
+          'Trình duyệt đang chặn camera. Hãy cho phép quyền camera rồi thử lại.',
+          'Đóng',
+          { duration: 4500 }
+        );
+        return;
+      }
+
       const videoOnlyStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       const newVideoTrack = videoOnlyStream.getVideoTracks()[0];
       if (!newVideoTrack) return;
@@ -400,8 +414,25 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.attachLocalStream();
       this.sendCurrentCameraState();
     } catch (err) {
-      console.error('Re-enable camera failed:', err);
-      this.snackBar.open('Không thể bật lại camera. Kiểm tra quyền trình duyệt.', 'Đóng', { duration: 4000 });
+      const errName = (err as DOMException | undefined)?.name ?? '';
+      if (errName === 'NotAllowedError') {
+        this.snackBar.open('Camera đang bị từ chối quyền tạm thời. Vui lòng thử lại hoặc kiểm tra quyền trình duyệt.', 'Đóng', { duration: 4200 });
+      } else {
+        console.warn('Re-enable camera failed:', err);
+        this.snackBar.open('Không thể bật lại camera. Kiểm tra quyền trình duyệt.', 'Đóng', { duration: 4000 });
+      }
+    } finally {
+      this.isTogglingCamera = false;
+    }
+  }
+
+  private async getCameraPermissionState(): Promise<PermissionState | null> {
+    if (typeof navigator === 'undefined' || !('permissions' in navigator)) return null;
+    try {
+      const status = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      return status.state;
+    } catch {
+      return null;
     }
   }
 
@@ -561,7 +592,10 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   get peerDisplayLabel(): string {
-    return '';
+    const name = (this.peerDisplayName || '').trim();
+    if (name) return name;
+    if (this.peerUserId) return this.peerUserId.slice(0, 6);
+    return 'Đối phương';
   }
 
   get localAvatarUrl(): string {
@@ -644,10 +678,16 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.attachLocalVideoTrackListeners();
     setTimeout(() => {
       const el = this.localVideoRef?.nativeElement;
-      if (el && this.localStream) {
+      if (el) {
         // Ensure local preview never plays back captured microphone.
         el.muted = true;
         el.volume = 0;
+        const hasActiveVideoTrack = !!this.localStream?.getVideoTracks().find((track) => track.readyState === 'live');
+        if (!hasActiveVideoTrack || this.isCameraOff) {
+          el.pause();
+          el.srcObject = null;
+          return;
+        }
         el.srcObject = this.localStream;
       }
     }, 0);
@@ -737,6 +777,8 @@ export class HomeComponent implements OnInit, OnDestroy {
       console.log('iceGatheringState:', this.peerConnection?.iceGatheringState);
     };
     this.videoSender = null;
+    this.isHandlingRemoteOffer = false;
+    this.lastRemoteOfferSdp = null;
     let hasAudioTrack = false;
     let hasVideoTrack = false;
     this.localStream?.getTracks().forEach((t) => {
@@ -778,11 +820,40 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.matching.onOffer().subscribe(async (data) => {
         if (!this.roomId || !this.peerConnection) return;
         if (data.roomId && data.roomId !== this.roomId) return;
-        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-        await this.flushPendingIceCandidates();
-        const answer = await this.peerConnection.createAnswer();
-        await this.peerConnection.setLocalDescription(answer);
-        this.matching.sendAnswer(this.roomId, answer);
+        if (!data.offer?.sdp) return;
+        if (this.lastRemoteOfferSdp === data.offer.sdp) return;
+        if (this.isHandlingRemoteOffer) return;
+
+        this.isHandlingRemoteOffer = true;
+        try {
+          // Avoid SDP mismatch caused by overlapping offer handling.
+          if (
+            this.peerConnection.signalingState !== 'stable' &&
+            this.peerConnection.signalingState !== 'have-remote-offer'
+          ) {
+            return;
+          }
+
+          await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+          this.lastRemoteOfferSdp = data.offer.sdp;
+          await this.flushPendingIceCandidates();
+
+          if (this.peerConnection.signalingState !== 'have-remote-offer') {
+            return;
+          }
+
+          const answer = await this.peerConnection.createAnswer();
+          if (this.peerConnection.signalingState !== 'have-remote-offer') {
+            return;
+          }
+
+          await this.peerConnection.setLocalDescription(answer);
+          this.matching.sendAnswer(this.roomId, answer);
+        } catch (err) {
+          console.warn('Ignore offer handling race:', err);
+        } finally {
+          this.isHandlingRemoteOffer = false;
+        }
       }),
       this.matching.onAnswer().subscribe(async (data) => {
         if (!this.peerConnection) return;

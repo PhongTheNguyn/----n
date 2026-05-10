@@ -187,11 +187,12 @@
                 alt="Avatar đối phương"
                 (error)="onAvatarError($event)"
               />
+              <p class="camera-off-name">{{ peerDisplayLabel }}</p>
               <div class="mic-bars">
                 <span class="mic-bar" *ngFor="let bar of peerMicBars" [style.transform]="'scaleY(' + bar + ')'"></span>
               </div>
             </div>
-            <div class="peer-label" *ngIf="isConnected && peerDisplayLabel">
+            <div class="peer-label" *ngIf="isConnected">
               <i class="fi fi-rr-user"></i>
               {{ peerDisplayLabel }}
             </div>
@@ -276,7 +277,7 @@
           <button mat-fab color="warn" (click)="toggleMic()" [class.muted]="isMicMuted" [matTooltip]="isMicMuted ? 'Bật mic' : 'Tắt mic'">
             <i [class]="isMicMuted ? 'fi fi-rr-microphone-slash' : 'fi fi-rr-microphone'"></i>
           </button>
-          <button mat-fab color="primary" (click)="toggleCamera()" [class.camera-off]="isCameraOff" [matTooltip]="isCameraOff ? 'Bật camera' : 'Tắt camera'">
+          <button mat-fab color="primary" (click)="toggleCamera()" [disabled]="isTogglingCamera" [class.camera-off]="isCameraOff" [matTooltip]="isCameraOff ? 'Bật camera' : 'Tắt camera'">
             <i [class]="isCameraOff ? 'fi fi-rr-video-slash' : 'fi fi-rr-video-camera'"></i>
           </button>
         </div>
