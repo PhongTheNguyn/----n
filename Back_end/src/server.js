@@ -97,6 +97,11 @@ let joinQueueBusy = false;
 const normalizeFilterValue = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
 const normalizeGenderFilter = (v) => (v === 'male' || v === 'female' ? v : 'all');
 const normalizeCountryFilter = (v) => (!v || v === 'all' ? 'all' : v);
+const normalizeAvatarUrl = (url) => {
+  if (!url || typeof url !== 'string') return url;
+  if (url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1')) return url;
+  return url.replace(/^http:\/\//i, 'https://');
+};
 
 function removeSocketFromQueue(socketId) {
   for (let i = queue.length - 1; i >= 0; i -= 1) {
@@ -228,7 +233,7 @@ io.on('connection', (socket) => {
         userGender: normalizeFilterValue(myProfile?.gender),
         userCountry: normalizeFilterValue(myProfile?.country),
         displayName: myProfile?.displayName || null,
-        avatarUrl: myProfile?.avatarUrl || null
+        avatarUrl: normalizeAvatarUrl(myProfile?.avatarUrl || null)
       };
 
       const [summary, filterCost] = await Promise.all([
@@ -367,7 +372,7 @@ io.on('connection', (socket) => {
           peerId: match.socketId,
           peerUserId: match.userId,
           peerDisplayName: peerProfile?.displayName || null,
-          peerAvatarUrl: peerProfile?.avatarUrl || null,
+        peerAvatarUrl: normalizeAvatarUrl(peerProfile?.avatarUrl || null),
           isInitiator: true
         });
         io.to(match.socketId).emit('matched', {
@@ -375,7 +380,7 @@ io.on('connection', (socket) => {
           peerId: socket.id,
           peerUserId: socket.userId,
           peerDisplayName: me.displayName,
-          peerAvatarUrl: me.avatarUrl,
+        peerAvatarUrl: normalizeAvatarUrl(me.avatarUrl),
           isInitiator: false
         });
       } else {
