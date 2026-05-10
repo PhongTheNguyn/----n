@@ -24,6 +24,7 @@ const {
 } = require('./services/billingService');
 
 const app = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 
 // Cho phép nhiều origin (localhost và IP LAN), cách nhau bằng dấu phẩy

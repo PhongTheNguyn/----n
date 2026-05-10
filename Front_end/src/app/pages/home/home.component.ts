@@ -379,21 +379,29 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.isTogglingCamera = true;
 
     try {
-      // Turn off camera for real: stop track so hardware LED can go off.
+      const currentVideoTrack = this.localStream.getVideoTracks()[0] || null;
+
+      // Prefer toggling track.enabled for stability on hosted environments.
       if (!this.isCameraOff) {
-        const currentVideoTrack = this.localStream.getVideoTracks()[0];
         if (currentVideoTrack) {
-          this.localStream.removeTrack(currentVideoTrack);
-          currentVideoTrack.stop();
+          currentVideoTrack.enabled = false;
         }
-        await this.replaceVideoSenderTrack(null);
         this.isCameraOff = true;
         this.attachLocalStream();
         this.sendCurrentCameraState();
         return;
       }
 
-      // Turn camera back on by getting a fresh video track.
+      if (currentVideoTrack && currentVideoTrack.readyState === 'live') {
+        currentVideoTrack.enabled = true;
+        await this.replaceVideoSenderTrack(currentVideoTrack);
+        this.isCameraOff = false;
+        this.attachLocalStream();
+        this.sendCurrentCameraState();
+        return;
+      }
+
+      // Fallback: if no live track exists, request a new one.
       const permissionState = await this.getCameraPermissionState();
       if (permissionState === 'denied') {
         this.snackBar.open(

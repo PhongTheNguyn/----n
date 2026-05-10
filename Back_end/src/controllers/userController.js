@@ -67,7 +67,9 @@ async function uploadAvatar(req, res) {
       return res.status(400).json({ error: 'Chưa chọn ảnh' });
     }
 
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+    const protocol = forwardedProto || req.protocol || 'https';
+    const baseUrl = `${protocol}://${req.get('host')}`;
     const avatarUrl = `${baseUrl}/uploads/${req.file.filename}`;
 
     const user = await prisma.user.update({
