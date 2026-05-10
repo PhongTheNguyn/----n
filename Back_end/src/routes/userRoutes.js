@@ -19,7 +19,7 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const allowed = /jpeg|jpg|png|gif|webp/i.test(path.extname(file.originalname) || file.mimetype);
     if (allowed) cb(null, true);
-    else cb(new Error('Chỉ chấp nhận file ảnh'));
+    else cb(new Error('Chỉ chấp nhận file ảnh định dạng JPG, JPEG, PNG, GIF hoặc WEBP'));
   }
 });
 
