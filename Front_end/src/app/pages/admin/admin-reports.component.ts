@@ -69,6 +69,19 @@ const STATUS_LABELS: Record<string, string> = {
         <th mat-header-cell *matHeaderCellDef>Lý do</th>
         <td mat-cell *matCellDef="let r">{{ reasonLabel(r.reason) }}</td>
       </ng-container>
+      <ng-container matColumnDef="description">
+        <th mat-header-cell *matHeaderCellDef>Nội dung</th>
+        <td mat-cell *matCellDef="let r">
+          <span
+            class="desc-cell"
+            [matTooltip]="r.description?.trim() ? r.description : 'Người báo cáo không nhập mô tả chi tiết.'"
+            matTooltipShowDelay="200"
+            matTooltipClass="report-desc-tooltip"
+          >
+            {{ r.description?.trim() ? r.description : '—' }}
+          </span>
+        </td>
+      </ng-container>
       <ng-container matColumnDef="status">
         <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
         <td mat-cell *matCellDef="let r">{{ statusLabel(r.status) }}</td>
@@ -129,12 +142,25 @@ const STATUS_LABELS: Record<string, string> = {
       th { color: #334155; font-weight: 700; }
       mat-paginator { margin-top: 16px; }
       .fi { font-size: 20px; line-height: 1; }
+      .desc-cell {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        max-width: 320px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        color: #334155;
+        font-size: 13px;
+        line-height: 1.45;
+        cursor: default;
+      }
     `
   ]
 })
 export class AdminReportsComponent implements OnInit {
   dataSource = new MatTableDataSource<ReportItem>([]);
-  displayedColumns = ['reporter', 'reported', 'reason', 'status', 'createdAt', 'actions'];
+  displayedColumns = ['reporter', 'reported', 'reason', 'description', 'status', 'createdAt', 'actions'];
   statusFilter = '';
   page = 1;
   pageSize = 20;

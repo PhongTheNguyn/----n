@@ -9,12 +9,20 @@ export interface DashboardStats {
   reportsToday: number;
   totalReports: number;
   totalSessions: number;
+  callsToday: number;
   pendingReports: number;
   paidTransactions: number;
+  transactionsToday: number;
   paidRevenueVnd: number;
   paymentChart: PaymentChartPoint[];
+  sessionsChart: SessionChartPoint[];
   paymentRange?: { from: string; to: string };
   onlineCount: number;
+}
+
+export interface SessionChartPoint {
+  date: string;
+  sessionCount: number;
 }
 
 export interface PaymentChartPoint {

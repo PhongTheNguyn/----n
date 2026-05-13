@@ -62,7 +62,7 @@ function getDashboardPaymentRange(query = {}) {
   return { from, to };
 }
 
-function buildDailyPaymentChart(zaloPayments = [], momoPayments = [], from, to) {
+function buildDailyPaymentChart(zaloPayments = [], from, to) {
   const buckets = [];
   const bucketMap = new Map();
 
@@ -73,7 +73,7 @@ function buildDailyPaymentChart(zaloPayments = [], momoPayments = [], from, to) 
     bucketMap.set(key, item);
   }
 
-  for (const payment of [...zaloPayments, ...momoPayments]) {
+  for (const payment of zaloPayments) {
     const paidDate = payment.paid_at || payment.created_at;
     if (!paidDate) continue;
     const key = formatDateKey(paidDate);
@@ -86,8 +86,32 @@ function buildDailyPaymentChart(zaloPayments = [], momoPayments = [], from, to) 
   return buckets;
 }
 
+function buildDailySessionsChart(sessions = [], from, to) {
+  const buckets = [];
+  const bucketMap = new Map();
+
+  for (const date = new Date(from); date <= to; date.setDate(date.getDate() + 1)) {
+    const key = formatDateKey(date);
+    const item = { date: key, sessionCount: 0 };
+    buckets.push(item);
+    bucketMap.set(key, item);
+  }
+
+  for (const row of sessions) {
+    if (!row.started_at) continue;
+    const key = formatDateKey(row.started_at);
+    const bucket = bucketMap.get(key);
+    if (!bucket) continue;
+    bucket.sessionCount += 1;
+  }
+
+  return buckets;
+}
+
 async function getDashboardStats(req, res) {
   try {
+    const todayStart = startOfDay();
+    const todayEnd = endOfDay();
     const paymentRange = getDashboardPaymentRange(req.query);
     const paidWhere = {
       status: 'paid',
@@ -102,13 +126,13 @@ async function getDashboardStats(req, res) {
       reportsToday,
       totalReports,
       totalSessions,
+      callsToday,
       pendingReports,
       zaloPaidCount,
       zaloPaidTotal,
       zaloChartPayments,
-      momoPaidCount,
-      momoPaidTotal,
-      momoChartPayments
+      zaloPaidTodayCount,
+      sessionsInRange
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user_reports.count({
@@ -118,6 +142,14 @@ async function getDashboardStats(req, res) {
       }),
       prisma.user_reports.count(),
       prisma.call_sessions.count(),
+      prisma.call_sessions.count({
+        where: {
+          started_at: {
+            gte: todayStart,
+            lte: todayEnd
+          }
+        }
+      }),
       prisma.user_reports.count({ where: { status: 'pending' } }),
       prisma.zalopay_payments.count({ where: paidWhere }),
       prisma.zalopay_payments.aggregate({
@@ -128,14 +160,23 @@ async function getDashboardStats(req, res) {
         where: paidWhere,
         select: { amount_vnd: true, paid_at: true, created_at: true }
       }),
-      prisma.momo_payments.count({ where: paidWhere }),
-      prisma.momo_payments.aggregate({
-        where: paidWhere,
-        _sum: { amount_vnd: true }
+      prisma.zalopay_payments.count({
+        where: {
+          status: 'paid',
+          paid_at: {
+            gte: todayStart,
+            lte: todayEnd
+          }
+        }
       }),
-      prisma.momo_payments.findMany({
-        where: paidWhere,
-        select: { amount_vnd: true, paid_at: true, created_at: true }
+      prisma.call_sessions.findMany({
+        where: {
+          started_at: {
+            gte: paymentRange.from,
+            lte: paymentRange.to
+          }
+        },
+        select: { started_at: true }
       })
     ]);
 
@@ -144,10 +185,13 @@ async function getDashboardStats(req, res) {
       reportsToday,
       totalReports,
       totalSessions,
+      callsToday,
       pendingReports,
-      paidTransactions: zaloPaidCount + momoPaidCount,
-      paidRevenueVnd: Number(zaloPaidTotal._sum.amount_vnd || 0) + Number(momoPaidTotal._sum.amount_vnd || 0),
-      paymentChart: buildDailyPaymentChart(zaloChartPayments, momoChartPayments, paymentRange.from, paymentRange.to),
+      paidTransactions: zaloPaidCount,
+      transactionsToday: zaloPaidTodayCount,
+      paidRevenueVnd: Number(zaloPaidTotal._sum.amount_vnd || 0),
+      paymentChart: buildDailyPaymentChart(zaloChartPayments, paymentRange.from, paymentRange.to),
+      sessionsChart: buildDailySessionsChart(sessionsInRange, paymentRange.from, paymentRange.to),
       paymentRange: {
         from: formatDateKey(paymentRange.from),
         to: formatDateKey(paymentRange.to)

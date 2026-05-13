@@ -124,25 +124,6 @@ model user_daily_usage {
   @@index([usage_date], map: "idx_user_daily_usage_date")
 }
 
-model momo_payments {
-  id               String    @id @default(cuid())
-  user_id          String    @db.VarChar(100)
-  order_id         String    @unique @db.VarChar(100)
-  request_id       String    @unique @db.VarChar(100)
-  amount_vnd       Int
-  coin_amount      Int
-  status           String    @default("pending") @db.VarChar(20)
-  momo_result_code Int?
-  pay_url          String?   @db.Text
-  raw_response     Json?
-  paid_at          DateTime? @db.Timestamptz(6)
-  created_at       DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime  @updatedAt @db.Timestamptz(6)
-
-  @@index([user_id], map: "idx_momo_payments_user")
-  @@index([status], map: "idx_momo_payments_status")
-}
-
 model zalopay_payments {
   id                String    @id @default(cuid())
   user_id           String    @db.VarChar(100)
