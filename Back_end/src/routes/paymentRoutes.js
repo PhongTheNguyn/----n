@@ -5,7 +5,8 @@ const {
   createZaloPayPayment,
   zaloPayCallback,
   getMyZaloPayPaymentStatus,
-  queryZaloPayOrder
+  queryZaloPayOrder,
+  abandonZaloPayOrder
 } = require('../controllers/paymentController');
 
 const router = express.Router();
@@ -17,5 +18,6 @@ router.get('/pricing', getPricingConfig);
 router.post('/zalopay/create', createZaloPayPayment);
 router.get('/zalopay/:orderId', getMyZaloPayPaymentStatus);
 router.post('/zalopay/:orderId/query', queryZaloPayOrder);
+router.post('/zalopay/:orderId/abandon', abandonZaloPayOrder);
 
 module.exports = router;

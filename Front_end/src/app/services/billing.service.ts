@@ -64,10 +64,14 @@ export class BillingService {
     );
   }
 
-  createZaloPayPayment(coins: number): Observable<{ payUrl: string; orderId: string }> {
+  createZaloPayPayment(coins: number, returnUrl?: string): Observable<{ payUrl: string; orderId: string }> {
+    const body: { coins: number; returnUrl?: string } = { coins };
+    if (returnUrl) {
+      body.returnUrl = returnUrl;
+    }
     return this.http.post<{ payUrl: string; orderId: string }>(
       `${this.apiUrl}/api/payment/zalopay/create`,
-      { coins },
+      body,
       { headers: this.headers() }
     );
   }
@@ -80,7 +84,15 @@ export class BillingService {
 
   queryZaloPayOrder(orderId: string): Observable<{ return_code: number }> {
     return this.http.post<{ return_code: number }>(
-      `${this.apiUrl}/api/payment/zalopay/${orderId}/query`,
+      `${this.apiUrl}/api/payment/zalopay/${encodeURIComponent(orderId)}/query`,
+      {},
+      { headers: this.headers() }
+    );
+  }
+
+  abandonZaloPayOrder(orderId: string): Observable<{ message: string; status: string }> {
+    return this.http.post<{ message: string; status: string }>(
+      `${this.apiUrl}/api/payment/zalopay/${encodeURIComponent(orderId)}/abandon`,
       {},
       { headers: this.headers() }
     );

@@ -1,6 +1,7 @@
 const { prisma } = require('../config/db');
 const { randomUUID } = require('crypto');
 const { addCoinsToUser } = require('../services/billingService');
+const { applyZaloPayQueryToRecord } = require('../services/zalopayOrderSync');
 const crypto = require('crypto');
 
 const ZALOPAY_QUERY_ENDPOINT =
@@ -683,25 +684,7 @@ async function syncPayment(req, res) {
     });
     const data = await response.json();
 
-    if (data.return_code === 1 && payment.status !== 'paid') {
-      await prisma.zalopay_payments.update({
-        where: { app_trans_id: orderId },
-        data: {
-          status: 'paid',
-          zlp_return_code: 1,
-          zp_trans_id: data.zp_trans_id ? String(data.zp_trans_id) : payment.zp_trans_id,
-          paid_at: payment.paid_at || new Date(),
-          raw_response: data
-        }
-      });
-
-      await addCoinsToUser(
-        payment.user_id,
-        payment.coin_amount,
-        'zalopay_topup',
-        { appTransId: orderId, zpTransId: data.zp_trans_id || null, amountVnd: payment.amount_vnd }
-      );
-    }
+    await applyZaloPayQueryToRecord(prisma, payment, data);
 
     await createSystemLog({
       action: 'payment_sync',

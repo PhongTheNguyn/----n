@@ -151,6 +151,11 @@ export class HomeComponent implements OnInit, OnDestroy {
     }
     this.subs.push(
       this.route.queryParams.subscribe((params) => {
+        const zaloKeys = ['resultCode', 'status', 'apptransid', 'orderId', 'app_trans_id'];
+        const hasZaloReturn = zaloKeys.some((k) => {
+          const v = params[k];
+          return v != null && String(v).length > 0;
+        });
         const resultCode = String(params['resultCode'] ?? params['status'] ?? '');
         const orderId = params['apptransid'] || params['orderId'] || params['app_trans_id'];
         if (resultCode === '0' || resultCode === '1') {
@@ -162,6 +167,16 @@ export class HomeComponent implements OnInit, OnDestroy {
           this.loadTransactions();
         } else if (resultCode) {
           this.snackBar.open('Thanh toán chưa thành công hoặc đã bị hủy.', 'Đóng', { duration: 4000 });
+          if (orderId) {
+            this.markZaloPayOrderAbandoned(String(orderId));
+          }
+        }
+        if (hasZaloReturn) {
+          setTimeout(() => {
+            this.router
+              .navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true })
+              .catch(() => {});
+          }, 0);
         }
       }),
       this.matching.onMatched().subscribe(({ roomId, peerUserId, peerDisplayName, peerAvatarUrl, isInitiator }) => {
@@ -654,7 +669,11 @@ export class HomeComponent implements OnInit, OnDestroy {
   createZaloPayPayment(coins: number) {
     if (this.isCreatingPayment) return;
     this.isCreatingPayment = true;
-    this.billingService.createZaloPayPayment(coins).subscribe({
+    const returnUrl =
+      typeof window !== 'undefined' && window.location?.origin
+        ? `${window.location.origin}/home`
+        : undefined;
+    this.billingService.createZaloPayPayment(coins, returnUrl).subscribe({
       next: (res) => {
         this.isCreatingPayment = false;
         if (res?.payUrl) {
@@ -905,6 +924,16 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.billingService.getMyTransactions(5).subscribe({
       next: (res) => {
         this.latestTransactions = res.transactions || [];
+      },
+      error: () => {}
+    });
+  }
+
+  private markZaloPayOrderAbandoned(orderId: string) {
+    this.billingService.abandonZaloPayOrder(orderId).subscribe({
+      next: () => {
+        this.refreshBillingSummary();
+        this.loadTransactions();
       },
       error: () => {}
     });

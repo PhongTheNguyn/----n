@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { prisma } = require('../config/db');
 const { addCoinsToUser, COIN_VND_VALUE } = require('../services/billingService');
+const { resolveEmbedRedirectUrl, applyZaloPayQueryToRecord } = require('../services/zalopayOrderSync');
 
 const ZALOPAY_CREATE_ENDPOINT =
   process.env.ZALOPAY_CREATE_ENDPOINT || 'https://sb-openapi.zalopay.vn/v2/create';
@@ -47,17 +48,19 @@ async function createZaloPayPayment(req, res) {
       return res.status(400).json({ error: 'ZaloPay chưa được cấu hình đầy đủ trên server.' });
     }
 
-    const { coins } = req.body;
+    const { coins, returnUrl } = req.body;
     const coinAmount = Math.max(1, Math.floor(Number(coins) || 0));
     const amount = coinAmount * COIN_VND_VALUE;
     const appTransId = generateAppTransId();
     const appTime = Date.now();
     const appUser = req.userId;
     const item = JSON.stringify([{ coinAmount, unitPrice: COIN_VND_VALUE }]);
+    const redirectTarget = resolveEmbedRedirectUrl(returnUrl);
     const embedData = JSON.stringify({
       userId: req.userId,
       coinAmount,
-      redirectUrl: ZALOPAY_REDIRECT_URL
+      redirecturl: redirectTarget,
+      redirectUrl: redirectTarget
     });
 
     const order = {
@@ -252,25 +255,7 @@ async function queryZaloPayOrder(req, res) {
     });
     const data = await response.json();
 
-    if (data.return_code === 1 && payment.status !== 'paid') {
-      await prisma.zalopay_payments.update({
-        where: { app_trans_id: orderId },
-        data: {
-          status: 'paid',
-          zlp_return_code: 1,
-          zp_trans_id: data.zp_trans_id ? String(data.zp_trans_id) : payment.zp_trans_id,
-          paid_at: payment.paid_at || new Date(),
-          raw_response: data
-        }
-      });
-
-      await addCoinsToUser(
-        payment.user_id,
-        payment.coin_amount,
-        'zalopay_topup',
-        { appTransId: orderId, zpTransId: data.zp_trans_id || null, amountVnd: payment.amount_vnd }
-      );
-    }
+    await applyZaloPayQueryToRecord(prisma, payment, data);
 
     return res.json(data);
   } catch (err) {
@@ -279,10 +264,50 @@ async function queryZaloPayOrder(req, res) {
   }
 }
 
+async function abandonZaloPayOrder(req, res) {
+  try {
+    const { orderId } = req.params;
+    const payment = await prisma.zalopay_payments.findFirst({
+      where: { app_trans_id: orderId, user_id: req.userId }
+    });
+    if (!payment) {
+      return res.status(404).json({ error: 'Không tìm thấy đơn thanh toán' });
+    }
+    if (payment.status === 'paid') {
+      return res.status(400).json({ error: 'Đơn đã thanh toán, không thể đánh dấu hủy' });
+    }
+    if (payment.status === 'canceled') {
+      return res.json({ message: 'Đơn đã được hủy trước đó', status: 'canceled' });
+    }
+
+    const prev = payment.raw_response;
+    const base =
+      prev && typeof prev === 'object' && !Array.isArray(prev) ? { ...prev } : {};
+
+    await prisma.zalopay_payments.update({
+      where: { app_trans_id: orderId },
+      data: {
+        status: 'canceled',
+        raw_response: {
+          ...base,
+          clientAbandon: true,
+          abandonedAt: new Date().toISOString()
+        }
+      }
+    });
+
+    return res.json({ message: 'Đã cập nhật đơn là đã hủy', status: 'canceled' });
+  } catch (err) {
+    console.error('abandonZaloPayOrder error:', err);
+    return res.status(500).json({ error: 'Lỗi server' });
+  }
+}
+
 module.exports = {
   getPricingConfig,
   createZaloPayPayment,
   zaloPayCallback,
   getMyZaloPayPaymentStatus,
-  queryZaloPayOrder
+  queryZaloPayOrder,
+  abandonZaloPayOrder
 };
