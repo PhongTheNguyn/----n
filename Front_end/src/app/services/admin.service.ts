@@ -225,6 +225,14 @@ export class AdminService {
     );
   }
 
+  reconcileStalePayments(): Observable<{ message: string; scanned: number; updated: number }> {
+    return this.http.post<{ message: string; scanned: number; updated: number }>(
+      `${this.apiUrl}/api/admin/payments/reconcile-stale`,
+      {},
+      { headers: this.headers() }
+    );
+  }
+
   topupCoins(userId: string, coins: number): Observable<{ message: string; coinBalance: number; addedCoins: number }> {
     return this.http.post<{ message: string; coinBalance: number; addedCoins: number }>(
       `${this.apiUrl}/api/admin/topup-coins`,

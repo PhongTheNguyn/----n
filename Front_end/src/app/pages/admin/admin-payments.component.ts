@@ -33,10 +33,11 @@ import { AdminService, PaymentItem } from '../../services/admin.service';
         <mat-label>Trạng thái</mat-label>
         <mat-select [(ngModel)]="statusFilter" (selectionChange)="load()">
           <mat-option value="">Tất cả</mat-option>
-          <mat-option value="pending">Pending</mat-option>
-          <mat-option value="created">Created</mat-option>
-          <mat-option value="paid">Paid</mat-option>
-          <mat-option value="failed">Failed</mat-option>
+          <mat-option value="pending">Chờ xử lý</mat-option>
+          <mat-option value="created">Đã tạo (chưa thanh toán)</mat-option>
+          <mat-option value="paid">Đã thanh toán</mat-option>
+          <mat-option value="canceled">Đã hủy</mat-option>
+          <mat-option value="failed">Thất bại</mat-option>
         </mat-select>
       </mat-form-field>
       <mat-form-field appearance="outline">
@@ -48,6 +49,7 @@ import { AdminService, PaymentItem } from '../../services/admin.service';
         <input matInput [(ngModel)]="orderIdFilter" (keyup.enter)="load()" />
       </mat-form-field>
       <button mat-raised-button color="primary" (click)="load()">Lọc</button>
+      <button mat-stroked-button type="button" (click)="reconcileStale()">Đồng bộ đơn quá hạn</button>
       <button mat-stroked-button type="button" (click)="exportCsv()">Export CSV</button>
     </div>
 
@@ -82,7 +84,7 @@ import { AdminService, PaymentItem } from '../../services/admin.service';
       <ng-container matColumnDef="status">
         <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
         <td mat-cell *matCellDef="let p">
-          <span class="status-badge" [class]="statusClass(p.status)">{{ p.status }}</span>
+          <span class="status-badge" [class]="statusClass(p.status)">{{ statusLabel(p.status) }}</span>
         </td>
       </ng-container>
       <ng-container matColumnDef="time">
@@ -163,6 +165,11 @@ import { AdminService, PaymentItem } from '../../services/admin.service';
         background: rgba(239, 68, 68, 0.12);
         border-color: rgba(239, 68, 68, 0.35);
       }
+      .status-canceled {
+        color: #6b7280;
+        background: rgba(107, 114, 128, 0.14);
+        border-color: rgba(107, 114, 128, 0.35);
+      }
       th, td { padding: 10px 14px; }
       small { color: #64748b; }
       mat-paginator { margin-top: 16px; }
@@ -225,6 +232,20 @@ export class AdminPaymentsComponent implements OnInit {
     this.load();
   }
 
+  reconcileStale() {
+    this.admin.reconcileStalePayments().subscribe({
+      next: (res) => {
+        this.snackBar.open(res.message || 'Đã quét đơn quá hạn', 'Đóng', { duration: 3500 });
+        this.load();
+      },
+      error: (err) => {
+        this.snackBar.open(err.error?.error || 'Đồng bộ đơn quá hạn thất bại', 'Đóng', {
+          duration: 3000
+        });
+      }
+    });
+  }
+
   sync(row: PaymentItem) {
     const ok = window.confirm(`Đồng bộ lại đơn ${row.appTransId}?`);
     if (!ok) return;
@@ -258,6 +279,24 @@ export class AdminPaymentsComponent implements OnInit {
     });
   }
 
+  statusLabel(status: string): string {
+    switch ((status || '').toLowerCase()) {
+      case 'paid':
+        return 'Đã thanh toán';
+      case 'created':
+        return 'Đã tạo';
+      case 'pending':
+        return 'Chờ xử lý';
+      case 'canceled':
+      case 'cancelled':
+        return 'Đã hủy';
+      case 'failed':
+        return 'Thất bại';
+      default:
+        return status || '—';
+    }
+  }
+
   statusClass(status: string): string {
     switch ((status || '').toLowerCase()) {
       case 'paid':
@@ -266,6 +305,9 @@ export class AdminPaymentsComponent implements OnInit {
         return 'status-badge status-created';
       case 'pending':
         return 'status-badge status-pending';
+      case 'canceled':
+      case 'cancelled':
+        return 'status-badge status-canceled';
       case 'failed':
         return 'status-badge status-failed';
       default:

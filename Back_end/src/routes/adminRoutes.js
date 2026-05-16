@@ -14,7 +14,8 @@ const {
   getLogs,
   topupUserCoins,
   getPayments,
-  syncPayment
+  syncPayment,
+  reconcileStalePayments
 } = require('../controllers/adminController');
 
 const router = express.Router();
@@ -34,5 +35,6 @@ router.get('/logs', getLogs);
 router.post('/topup-coins', topupUserCoins);
 router.get('/payments', getPayments);
 router.post('/payments/:orderId/sync', syncPayment);
+router.post('/payments/reconcile-stale', reconcileStalePayments);
 
 module.exports = router;

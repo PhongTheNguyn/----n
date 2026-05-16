@@ -1,13 +1,11 @@
 const { prisma } = require('../config/db');
 const { randomUUID } = require('crypto');
 const { addCoinsToUser } = require('../services/billingService');
-const { applyZaloPayQueryToRecord } = require('../services/zalopayOrderSync');
-const crypto = require('crypto');
-
-const ZALOPAY_QUERY_ENDPOINT =
-  process.env.ZALOPAY_QUERY_ENDPOINT || 'https://sb-openapi.zalopay.vn/v2/query';
-const ZALOPAY_APP_ID = Number(process.env.ZALOPAY_APP_ID || 0);
-const ZALOPAY_KEY1 = process.env.ZALOPAY_KEY1 || '';
+const {
+  isZaloPayConfigured,
+  queryAndSyncPayment,
+  reconcileStaleZaloPayPayments
+} = require('../services/zalopayOrderSync');
 
 const DEFAULT_CONFIG = {
   warnThreshold: 3,
@@ -656,47 +654,61 @@ async function getPayments(req, res) {
   }
 }
 
-function signZaloPay(data) {
-  return crypto.createHmac('sha256', ZALOPAY_KEY1).update(data).digest('hex');
-}
-
 async function syncPayment(req, res) {
   try {
-    if (!ZALOPAY_APP_ID || !ZALOPAY_KEY1) {
+    if (!isZaloPayConfigured()) {
       return res.status(400).json({ error: 'ZaloPay chưa được cấu hình đầy đủ trên server.' });
     }
 
     const { orderId } = req.params;
-    const payment = await prisma.zalopay_payments.findUnique({ where: { app_trans_id: orderId } });
-    if (!payment) {
+    const synced = await queryAndSyncPayment(prisma, orderId);
+    if (!synced) {
       return res.status(404).json({ error: 'Không tìm thấy đơn thanh toán' });
     }
-
-    const mac = signZaloPay(`${ZALOPAY_APP_ID}|${orderId}|${ZALOPAY_KEY1}`);
-    const response = await fetch(ZALOPAY_QUERY_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        app_id: String(ZALOPAY_APP_ID),
-        app_trans_id: orderId,
-        mac
-      })
-    });
-    const data = await response.json();
-
-    await applyZaloPayQueryToRecord(prisma, payment, data);
 
     await createSystemLog({
       action: 'payment_sync',
       user_id: req.userId,
-      target_id: payment.user_id,
-      details: JSON.stringify({ orderId, returnCode: data.return_code })
+      target_id: synced.payment.user_id,
+      details: JSON.stringify({
+        orderId,
+        returnCode: synced.data.return_code,
+        status: synced.payment.status
+      })
     });
 
-    return res.json({ message: 'Đã đồng bộ đơn', data });
+    return res.json({
+      message: 'Đã đồng bộ đơn',
+      data: synced.data,
+      status: synced.payment.status
+    });
   } catch (err) {
     console.error('syncPayment error:', err);
     return res.status(500).json({ error: 'Lỗi đồng bộ đơn' });
+  }
+}
+
+async function reconcileStalePayments(req, res) {
+  try {
+    if (!isZaloPayConfigured()) {
+      return res.status(400).json({ error: 'ZaloPay chưa được cấu hình đầy đủ trên server.' });
+    }
+
+    const result = await reconcileStaleZaloPayPayments(prisma);
+
+    await createSystemLog({
+      action: 'payment_reconcile_stale',
+      user_id: req.userId,
+      details: JSON.stringify(result)
+    });
+
+    return res.json({
+      message: `Đã quét ${result.scanned} đơn, cập nhật ${result.updated} đơn`,
+      ...result
+    });
+  } catch (err) {
+    console.error('reconcileStalePayments error:', err);
+    return res.status(500).json({ error: 'Lỗi đồng bộ đơn quá hạn' });
   }
 }
 
@@ -731,6 +743,7 @@ module.exports = {
   topupUserCoins,
   getPayments,
   syncPayment,
+  reconcileStalePayments,
   createSystemLog,
   loadAdminConfig
 };

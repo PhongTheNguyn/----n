@@ -1,7 +1,11 @@
 const crypto = require('crypto');
 const { prisma } = require('../config/db');
 const { addCoinsToUser, COIN_VND_VALUE } = require('../services/billingService');
-const { resolveEmbedRedirectUrl, applyZaloPayQueryToRecord } = require('../services/zalopayOrderSync');
+const {
+  resolveEmbedRedirectUrl,
+  applyZaloPayQueryToRecord,
+  markPaymentAsCanceled
+} = require('../services/zalopayOrderSync');
 
 const ZALOPAY_CREATE_ENDPOINT =
   process.env.ZALOPAY_CREATE_ENDPOINT || 'https://sb-openapi.zalopay.vn/v2/create';
@@ -280,20 +284,9 @@ async function abandonZaloPayOrder(req, res) {
       return res.json({ message: 'Đơn đã được hủy trước đó', status: 'canceled' });
     }
 
-    const prev = payment.raw_response;
-    const base =
-      prev && typeof prev === 'object' && !Array.isArray(prev) ? { ...prev } : {};
-
-    await prisma.zalopay_payments.update({
-      where: { app_trans_id: orderId },
-      data: {
-        status: 'canceled',
-        raw_response: {
-          ...base,
-          clientAbandon: true,
-          abandonedAt: new Date().toISOString()
-        }
-      }
+    await markPaymentAsCanceled(prisma, payment, {
+      clientAbandon: true,
+      reason: 'user_returned_from_zalopay'
     });
 
     return res.json({ message: 'Đã cập nhật đơn là đã hủy', status: 'canceled' });

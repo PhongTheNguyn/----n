@@ -1,7 +1,37 @@
+const crypto = require('crypto');
 const { addCoinsToUser } = require('./billingService');
 
+const ZALOPAY_QUERY_ENDPOINT =
+  process.env.ZALOPAY_QUERY_ENDPOINT || 'https://sb-openapi.zalopay.vn/v2/query';
+const ZALOPAY_APP_ID = Number(process.env.ZALOPAY_APP_ID || 0);
+const ZALOPAY_KEY1 = process.env.ZALOPAY_KEY1 || '';
 const ZALOPAY_REDIRECT_URL = process.env.ZALOPAY_REDIRECT_URL || 'http://localhost:4200/home';
+const ZALOPAY_ORDER_EXPIRE_MINUTES = Number(process.env.ZALOPAY_ORDER_EXPIRE_MINUTES || 15);
+const ZALOPAY_RECONCILE_MIN_AGE_MINUTES = Number(process.env.ZALOPAY_RECONCILE_MIN_AGE_MINUTES || 2);
+const ZALOPAY_RECONCILE_BATCH_SIZE = Number(process.env.ZALOPAY_RECONCILE_BATCH_SIZE || 40);
 
+function isZaloPayConfigured() {
+  return !!(ZALOPAY_APP_ID && ZALOPAY_KEY1);
+}
+
+function signQueryMac(appTransId) {
+  const data = `${ZALOPAY_APP_ID}|${appTransId}|${ZALOPAY_KEY1}`;
+  return crypto.createHmac('sha256', ZALOPAY_KEY1).update(data).digest('hex');
+}
+
+async function fetchZaloPayQuery(appTransId) {
+  const mac = signQueryMac(appTransId);
+  const response = await fetch(ZALOPAY_QUERY_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      app_id: String(ZALOPAY_APP_ID),
+      app_trans_id: appTransId,
+      mac
+    })
+  });
+  return response.json();
+}
 function normalizeToHomeUrl(urlString) {
   try {
     const u = new URL(urlString);
@@ -121,7 +151,96 @@ async function applyZaloPayQueryToRecord(prisma, payment, data) {
   return { payment, changed: false };
 }
 
+async function markPaymentAsCanceled(prisma, payment, extra = {}) {
+  if (!payment || payment.status === 'paid' || payment.status === 'canceled') {
+    return payment;
+  }
+  const prev = payment.raw_response;
+  const base = prev && typeof prev === 'object' && !Array.isArray(prev) ? { ...prev } : {};
+  await prisma.zalopay_payments.update({
+    where: { app_trans_id: payment.app_trans_id },
+    data: {
+      status: 'canceled',
+      raw_response: {
+        ...base,
+        ...extra,
+        canceledAt: new Date().toISOString()
+      }
+    }
+  });
+  return prisma.zalopay_payments.findUnique({ where: { app_trans_id: payment.app_trans_id } });
+}
+
+/**
+ * Quét đơn created/pending: query ZaloPay; đơn quá hạn (~15 phút) mà vẫn chưa paid → canceled.
+ * Xử lý trường hợp user đóng tab / không quay lại app sau khi mở cổng ZaloPay.
+ */
+async function reconcileStaleZaloPayPayments(prisma) {
+  if (!isZaloPayConfigured()) {
+    return { scanned: 0, updated: 0, skipped: true };
+  }
+
+  const expireMs = Math.max(1, ZALOPAY_ORDER_EXPIRE_MINUTES) * 60 * 1000;
+  const minAgeMs = Math.max(0, ZALOPAY_RECONCILE_MIN_AGE_MINUTES) * 60 * 1000;
+  const expireBefore = new Date(Date.now() - expireMs);
+  const minCreatedBefore = new Date(Date.now() - minAgeMs);
+
+  const candidates = await prisma.zalopay_payments.findMany({
+    where: {
+      status: { in: ['created', 'pending'] },
+      created_at: { lte: minCreatedBefore }
+    },
+    orderBy: { created_at: 'asc' },
+    take: Math.max(1, ZALOPAY_RECONCILE_BATCH_SIZE)
+  });
+
+  let updated = 0;
+  for (const payment of candidates) {
+    try {
+      const data = await fetchZaloPayQuery(payment.app_trans_id);
+      const result = await applyZaloPayQueryToRecord(prisma, payment, data);
+      if (result.changed) {
+        updated += 1;
+        continue;
+      }
+
+      const isExpired = payment.created_at <= expireBefore;
+      const stillOpen =
+        result.payment?.status === 'created' || result.payment?.status === 'pending';
+      const zaloStillUnpaid = Number(data.return_code) === 3;
+
+      if (isExpired && stillOpen && (zaloStillUnpaid || Number(data.return_code) === 2)) {
+        await markPaymentAsCanceled(prisma, result.payment, {
+          autoExpired: true,
+          reason: 'order_expired_or_abandoned',
+          zaloPayReturnCode: data.return_code,
+          zaloPaySubReturnCode: data.sub_return_code,
+          zaloPayQuery: data
+        });
+        updated += 1;
+      }
+    } catch (err) {
+      console.error('reconcileStaleZaloPayPayments:', payment.app_trans_id, err);
+    }
+  }
+
+  return { scanned: candidates.length, updated, skipped: false };
+}
+
+async function queryAndSyncPayment(prisma, appTransId) {
+  const payment = await prisma.zalopay_payments.findUnique({ where: { app_trans_id: appTransId } });
+  if (!payment) return null;
+  const data = await fetchZaloPayQuery(appTransId);
+  const result = await applyZaloPayQueryToRecord(prisma, payment, data);
+  return { payment: result.payment, data, changed: result.changed, status: result.status };
+}
+
 module.exports = {
+  isZaloPayConfigured,
   resolveEmbedRedirectUrl,
-  applyZaloPayQueryToRecord
+  applyZaloPayQueryToRecord,
+  markPaymentAsCanceled,
+  fetchZaloPayQuery,
+  reconcileStaleZaloPayPayments,
+  queryAndSyncPayment
 };

@@ -22,6 +22,7 @@ const {
   chargeCallDuration,
   getBillingSummary
 } = require('./services/billingService');
+const { reconcileStaleZaloPayPayments } = require('./services/zalopayOrderSync');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -515,6 +516,25 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0',() => {
+const ZALOPAY_RECONCILE_INTERVAL_MS = Number(
+  process.env.ZALOPAY_RECONCILE_INTERVAL_MS || 5 * 60 * 1000
+);
+
+async function runZaloPayStaleReconcile() {
+  try {
+    const result = await reconcileStaleZaloPayPayments(prisma);
+    if (!result.skipped && result.updated > 0) {
+      console.log(
+        `[zalopay-reconcile] scanned=${result.scanned} updated=${result.updated}`
+      );
+    }
+  } catch (err) {
+    console.error('[zalopay-reconcile] error:', err);
+  }
+}
+
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on http://0.0.0.0:${PORT}`);
+  setTimeout(() => runZaloPayStaleReconcile(), 30_000);
+  setInterval(runZaloPayStaleReconcile, ZALOPAY_RECONCILE_INTERVAL_MS);
 });
