@@ -3,7 +3,7 @@ import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { HttpClientModule } from '@angular/common/http';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 // Angular Material Modules
 import { MatButtonModule } from '@angular/material/button';
@@ -41,70 +41,63 @@ import { AdminPaymentsComponent } from './pages/admin/admin-payments.component';
 import { AdminUsersComponent } from './pages/admin/admin-users.component';
 import { CountryFlagUrlPipe } from './pipes/country-flag-url.pipe';
 
-@NgModule({
-  declarations: [
-    AppComponent,
-    LoginComponent,
-    RegisterComponent,
-    ProfileComponent,
-    HomeComponent,
-    ReportDialogComponent,
-    CountryFlagUrlPipe
-  ],
-  imports: [
-    BrowserModule,
-    BrowserAnimationsModule,
-    HttpClientModule,
-    FormsModule,
-    ReactiveFormsModule,
-    RouterModule.forRoot([
-      { path: '', redirectTo: '/login', pathMatch: 'full' },
-      { path: 'login', component: LoginComponent },
-      { path: 'register', component: RegisterComponent },
-      { path: 'profile', component: ProfileComponent, canActivate: [AuthGuard] },
-      { path: 'home', component: HomeComponent, canActivate: [AuthGuard] },
-      {
-        path: 'admin',
-        component: AdminLayoutComponent,
-        canActivate: [AdminGuard],
-        children: [
-          { path: '', component: AdminDashboardComponent },
-          { path: 'users', component: AdminUsersComponent },
-          { path: 'reports', component: AdminReportsComponent },
-          { path: 'sessions', component: AdminSessionsComponent },
-          { path: 'payments', component: AdminPaymentsComponent },
-          { path: 'logs', component: AdminLogsComponent },
-          { path: 'config', component: AdminConfigComponent }
-        ]
-      },
-      { path: '**', redirectTo: '/login' }
-    ]),
-    MatButtonModule,
-    MatInputModule,
-    MatFormFieldModule,
-    MatIconModule,
-    MatSelectModule,
-    MatCheckboxModule,
-    MatCardModule,
-    MatToolbarModule,
-    MatProgressSpinnerModule,
-    MatSnackBarModule,
-    MatTooltipModule,
-    MatDialogModule,
-    MatMenuModule,
-    MatSidenavModule,
-    MatTableModule,
-    MatPaginatorModule,
-    AdminLayoutComponent,
-    AdminDashboardComponent,
-    AdminUsersComponent,
-    AdminReportsComponent,
-    AdminSessionsComponent,
-    AdminPaymentsComponent,
-    AdminLogsComponent,
-    AdminConfigComponent
-  ],
-  providers: [],
-  bootstrap: [AppComponent]
-})
+@NgModule({ declarations: [
+        AppComponent,
+        LoginComponent,
+        RegisterComponent,
+        ProfileComponent,
+        HomeComponent,
+        ReportDialogComponent,
+        CountryFlagUrlPipe
+    ],
+    bootstrap: [AppComponent], imports: [BrowserModule,
+        BrowserAnimationsModule,
+        FormsModule,
+        ReactiveFormsModule,
+        RouterModule.forRoot([
+            { path: '', redirectTo: '/login', pathMatch: 'full' },
+            { path: 'login', component: LoginComponent },
+            { path: 'register', component: RegisterComponent },
+            { path: 'profile', component: ProfileComponent, canActivate: [AuthGuard] },
+            { path: 'home', component: HomeComponent, canActivate: [AuthGuard] },
+            {
+                path: 'admin',
+                component: AdminLayoutComponent,
+                canActivate: [AdminGuard],
+                children: [
+                    { path: '', component: AdminDashboardComponent },
+                    { path: 'users', component: AdminUsersComponent },
+                    { path: 'reports', component: AdminReportsComponent },
+                    { path: 'sessions', component: AdminSessionsComponent },
+                    { path: 'payments', component: AdminPaymentsComponent },
+                    { path: 'logs', component: AdminLogsComponent },
+                    { path: 'config', component: AdminConfigComponent }
+                ]
+            },
+            { path: '**', redirectTo: '/login' }
+        ]),
+        MatButtonModule,
+        MatInputModule,
+        MatFormFieldModule,
+        MatIconModule,
+        MatSelectModule,
+        MatCheckboxModule,
+        MatCardModule,
+        MatToolbarModule,
+        MatProgressSpinnerModule,
+        MatSnackBarModule,
+        MatTooltipModule,
+        MatDialogModule,
+        MatMenuModule,
+        MatSidenavModule,
+        MatTableModule,
+        MatPaginatorModule,
+        AdminLayoutComponent,
+        AdminDashboardComponent,
+        AdminUsersComponent,
+        AdminReportsComponent,
+        AdminSessionsComponent,
+        AdminPaymentsComponent,
+        AdminLogsComponent,
+        AdminConfigComponent], providers: [provideHttpClient(withInterceptorsFromDi())] })
 export class AppModule { }
