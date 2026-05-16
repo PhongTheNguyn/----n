@@ -7,6 +7,7 @@ import { AuthService } from '../../services/auth.service';
 import { ReportBlockService } from '../../services/report-block.service';
 
 @Component({
+  standalone: false,
   selector: 'app-profile',
   templateUrl: './profile.component.html',
   styleUrls: ['./profile.component.scss']

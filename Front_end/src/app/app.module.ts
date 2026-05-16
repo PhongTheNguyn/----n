@@ -41,7 +41,8 @@ import { AdminPaymentsComponent } from './pages/admin/admin-payments.component';
 import { AdminUsersComponent } from './pages/admin/admin-users.component';
 import { CountryFlagUrlPipe } from './pipes/country-flag-url.pipe';
 
-@NgModule({ declarations: [
+@NgModule({
+    declarations: [
         AppComponent,
         LoginComponent,
         RegisterComponent,
@@ -50,7 +51,8 @@ import { CountryFlagUrlPipe } from './pipes/country-flag-url.pipe';
         ReportDialogComponent,
         CountryFlagUrlPipe
     ],
-    bootstrap: [AppComponent], imports: [BrowserModule,
+    bootstrap: [AppComponent],
+    imports: [BrowserModule,
         BrowserAnimationsModule,
         FormsModule,
         ReactiveFormsModule,

@@ -7,6 +7,7 @@ export interface ReportDialogData {
 }
 
 @Component({
+  standalone: false,
   selector: 'app-report-dialog',
   templateUrl: './report-dialog.component.html',
   styleUrls: ['./report-dialog.component.scss']

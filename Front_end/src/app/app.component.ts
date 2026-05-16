@@ -4,6 +4,7 @@ import { filter } from 'rxjs/operators';
 import { SessionEnforcementService } from './services/session-enforcement.service';
 
 @Component({
+  standalone: false,
   selector: 'app-root',
   template: '<router-outlet></router-outlet>',
   styles: [`
